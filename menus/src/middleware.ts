@@ -26,6 +26,12 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Everything except Next's own assets and the favicon.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  /**
+   * Everything except static assets.
+   *
+   * `fonts/` and `brand/` are served from `public/` and must stay outside the
+   * gate: the PDF renderer fetches the font files itself, and gating them made
+   * every request 307 to /login. They're public design assets, not data.
+   */
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|fonts/|brand/).*)"],
 };

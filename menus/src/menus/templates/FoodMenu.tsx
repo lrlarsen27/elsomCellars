@@ -37,6 +37,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.page.margin,
     paddingVertical: theme.page.margin,
     backgroundColor: theme.color.paper,
+    // Page-level default so any text added later without an explicit family
+    // lands on a design face rather than react-pdf's built-in Helvetica.
+    fontFamily: fonts.body,
   },
 
   // --- Header ---
@@ -170,6 +173,12 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   footerTag: { fontFamily: fonts.headingMedium },
+  /**
+   * react-pdf doesn't reliably inherit fontFamily into nested <Text>, so every
+   * span in the legend names its face explicitly. Without this the glosses
+   * silently render in Helvetica and drag it into the embedded font list.
+   */
+  footerGloss: { fontFamily: fonts.body },
 });
 
 function Header({ season }: { season: string }) {
@@ -191,10 +200,9 @@ function Footer({ disclaimer, serviceCharge }: { disclaimer: string; serviceChar
     <View style={styles.footer} fixed>
       <Text style={styles.footerLine}>
         {LEGEND.map(([abbreviation, gloss], index) => (
-          <Text key={abbreviation}>
+          <Text key={abbreviation} style={styles.footerGloss}>
             <Text style={styles.footerTag}>{abbreviation}</Text>
-            <Text>{` - ${gloss}`}</Text>
-            {index < LEGEND.length - 1 ? <Text>, </Text> : null}
+            {` - ${gloss}${index < LEGEND.length - 1 ? ", " : ""}`}
           </Text>
         ))}
       </Text>

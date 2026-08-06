@@ -38,8 +38,8 @@ export const theme = {
   },
 
   /**
-   * Both families are open-source (SIL OFL) and free to embed.
-   * They are NOT yet wired up — see the note at the bottom of this file.
+   * Both families are open-source (SIL OFL) and free to embed. Registered in
+   * `fonts.ts`; the TTFs live in `public/fonts/`.
    */
   font: {
     /** Barlow Condensed Regular — section headers. MEASURED. */
@@ -114,27 +114,6 @@ export const theme = {
 export type DietaryTag = keyof typeof theme.dietaryTags;
 
 /**
- * --- Fonts are not wired up yet ---
- *
- * The design uses Barlow Condensed and Cormorant Garamond. Both are SIL Open
- * Font License, so embedding them in a PDF is permitted.
- *
- * `@react-pdf/renderer` needs actual font files; it cannot use a webfont CSS
- * link. The clean way to get them is as versioned npm dependencies rather than
- * loose binaries:
- *
- *   npm install @fontsource/barlow-condensed @fontsource/cormorant-garamond
- *
- * then copy the .ttf files into `public/fonts/` and register once at module
- * load, before any template renders:
- *
- *   import { Font } from "@react-pdf/renderer";
- *   Font.register({ family: "BarlowCondensed", src: "/fonts/barlow-condensed-400.ttf" });
- *   Font.register({ family: "BarlowCondensedMedium", src: "/fonts/barlow-condensed-500.ttf" });
- *   Font.register({ family: "CormorantGaramond", src: "/fonts/cormorant-garamond-400.ttf" });
- *   Font.register({ family: "CormorantGaramondBold", src: "/fonts/cormorant-garamond-700.ttf" });
- *   Font.register({ family: "CormorantGaramondItalic", src: "/fonts/cormorant-garamond-400-italic.ttf" });
- *
- * Until that happens the templates fall back to the built-in PDF faces, which
- * render but look nothing like the design.
+ * Fonts are wired up — see `fonts.ts` for where the files came from and why
+ * `@fontsource` can't be used (it ships woff/woff2; react-pdf needs TTF/OTF).
  */

@@ -4,26 +4,27 @@ import { Font } from "@react-pdf/renderer";
  * Font registration for the PDF renderer.
  *
  * The design uses Barlow Condensed and Cormorant Garamond. Both are SIL Open
- * Font License, so embedding them in a PDF is permitted.
+ * Font License, which permits embedding and redistribution as long as the
+ * licence travels with the files — so `public/fonts/` carries a copy of each.
  *
- * `@react-pdf/renderer` needs real font files — it cannot use a webfont CSS
- * link. Until those files exist in `public/fonts/`, this module falls back to
- * the three faces built into every PDF reader so the app still renders. The
- * fallback is legible but looks nothing like the design.
+ * --- Where the files came from ---
  *
- * To switch the real fonts on:
+ * `@react-pdf/renderer` needs TTF or OTF. It cannot use WOFF/WOFF2, and it
+ * cannot use a webfont CSS link. That rules out `@fontsource/*`, which ships
+ * only woff and woff2. The TTFs here were taken from `@expo-google-fonts/*`,
+ * which ships the original Google Fonts TTF binaries, and committed to the
+ * repo so the app doesn't depend on a package it otherwise never imports.
  *
- *   1. npm install @fontsource/barlow-condensed @fontsource/cormorant-garamond
- *   2. Copy these files into `public/fonts/`, renaming as shown:
- *        barlow-condensed/files/barlow-condensed-latin-400-normal.woff2   -> barlow-condensed-400.ttf
- *        barlow-condensed/files/barlow-condensed-latin-500-normal.woff2   -> barlow-condensed-500.ttf
- *        cormorant-garamond/files/...-400-normal.woff2                    -> cormorant-garamond-400.ttf
- *        cormorant-garamond/files/...-700-normal.woff2                    -> cormorant-garamond-700.ttf
- *        cormorant-garamond/files/...-400-italic.woff2                    -> cormorant-garamond-400-italic.ttf
- *      (Use the .ttf files from the package, not .woff2 — react-pdf needs TTF.)
- *   3. Flip FONTS_INSTALLED to true below.
+ * To update a face: `npm install @expo-google-fonts/<family>`, copy the TTF
+ * out of `node_modules`, then uninstall the package again.
+ *
+ * --- Why separate families instead of weights ---
+ *
+ * Each face is registered under its own family name rather than as a weight or
+ * style of one family. The templates then name the exact face they want, so a
+ * missing bold can't silently fall back to a synthesised one.
  */
-export const FONTS_INSTALLED = false;
+export const FONTS_INSTALLED = true;
 
 const REAL = {
   headingRegular: "BarlowCondensed",

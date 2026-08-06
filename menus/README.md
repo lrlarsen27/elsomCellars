@@ -4,10 +4,10 @@ Sign in with a shared passcode, edit the menu text, download a print-ready PDF.
 
 Part of the [Elsom Cellars](../README.md) repo.
 
-> **Status:** runs locally. Typecheck is clean, the dev server boots, login
-> works, and the PDF renders in the browser and server-side. The column layout
-> was verified against the artboard column by column. Fonts are still the
-> fallback faces — see below.
+> **Status:** runs locally and renders the real design. Typecheck is clean,
+> login works, and the exported PDF is two 11×17 pages with Barlow Condensed
+> and Cormorant Garamond embedded and subsetted. Column layout was verified
+> against the artboard column by column.
 
 ## The one idea
 
@@ -66,26 +66,24 @@ Open http://localhost:3000 and sign in with whatever you set `APP_PASSCODE` to.
 | `src/menus/templates/logo.tsx` | Generated vector logo — don't hand-edit. |
 | `src/menus/templates/fonts.ts` | Font registration and the fallback switch. |
 | `src/menus/templates/assets/` | The Figma SVG exports the logo was generated from. |
+| `public/fonts/` | The embedded TTFs, with their OFL licences. |
 | `src/lib/schema.ts` | What's editable. Adding a field here makes it editable. |
 | `src/lib/seed.ts` | Starting copy, transcribed from the artboards. |
 | `src/lib/store.ts` | Persistence. Swap this one file to change hosting. |
 | `src/components/MenuForm.tsx` | The editing form. |
 
-## Three things still outstanding
+## Still outstanding
 
-**1. Fonts aren't wired up.** The design uses Barlow Condensed and Cormorant
-Garamond — both SIL Open Font License, so embedding is permitted. Until the
-files are in `public/fonts/`, `fonts.ts` falls back to the built-in PDF faces,
-which render but look nothing like the design. Instructions and the
-`FONTS_INSTALLED` switch are at the top of that file.
-
-**2. The back-page watermark is missing.** The large watercolour "E" (node
+**1. The back-page watermark is missing.** The large watercolour "E" (node
 `22:1137`) is roughly 300 vector paths, and Figma only exports it at 1×, which
 is too coarse to print. Export it as a PNG at 4× or larger, save it to
 `public/brand/watermark-e.png`, and render it behind the back page columns.
 
-**3. Nothing — the layout now reproduces the artboard.** Verified column by
-column against the Figma with the real menu content:
+**2. The wine menu** hasn't been designed — see below.
+
+## The layout reproduces the artboard
+
+Verified column by column against the Figma with the real menu content:
 
 | Column | Contents |
 | --- | --- |
@@ -99,6 +97,37 @@ Getting there took two corrections worth knowing about, both recorded in
 artboard's Sandwiches split is load-bearing — forbidding it pushed Plates onto
 the back page), and a section is moved whole to the next column rather than
 stranding fewer than two items in a headingless continuation.
+
+## Fonts
+
+Barlow Condensed and Cormorant Garamond, both SIL Open Font License. The TTFs
+are committed to `public/fonts/` with their licences alongside, as the OFL
+requires. The exported PDF embeds all five faces, subsetted.
+
+Two traps worth recording, because both cost time:
+
+- **`@fontsource/*` will not work.** It ships only `woff` and `woff2`;
+  react-pdf needs TTF or OTF. These files came from `@expo-google-fonts/*`,
+  which ships the original Google Fonts TTFs. That package is installed,
+  copied from, then uninstalled — it is never imported.
+- **The font files must not sit behind auth.** The PDF renderer fetches them
+  itself, so `fonts/` is excluded from the middleware matcher in
+  `src/middleware.ts`. Gating them turned every font request into a 307.
+
+`fonts.ts` has a `FONTS_INSTALLED` switch that reverts to the built-in PDF
+faces, useful for ruling fonts out while debugging.
+
+One cosmetic note: the PDF also references `/Helvetica` without embedding it.
+That's react-pdf declaring its own default; no content renders in it. Adding a
+page-level default family left the output byte-identical, which is how we know.
+
+## Running commands on Windows
+
+If PowerShell refuses with an execution-policy error, call `npm.cmd` rather
+than `npm`. PowerShell resolves bare `npm` to `npm.ps1`, which is an unsigned
+script; `npm.cmd` is a batch file and execution policy doesn't apply to it.
+Git Bash and `cmd.exe` are unaffected too. Nothing needs to be changed
+system-wide.
 
 ## Adding the wine menu
 
