@@ -3,7 +3,7 @@ import { theme } from "./theme";
 import type { MenuContent } from "@/lib/schema";
 
 /**
- * The Drinks Menu layout — the second of the two designs.
+ * The Wine Menu layout — the second of the two designs.
  *
  * Deliberately a different treatment from the Food Menu (left-aligned section
  * headings with a rule, price set in a fixed-width column) so the two templates
@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
   },
 });
 
-export function DrinksMenu({ content }: { content: MenuContent }) {
+export function WineMenu({ content }: { content: MenuContent }) {
   return (
     <Document title={content.title || "Menu"}>
       <Page size={{ width: theme.page.width, height: theme.page.height }} style={styles.page}>

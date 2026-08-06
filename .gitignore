@@ -1,3 +1,6 @@
+# Repo-wide ignores. These patterns are unanchored, so they apply to every
+# project directory in this repo — including ones added later.
+
 node_modules/
 .next/
 out/
@@ -8,5 +11,10 @@ next-env.d.ts
 .env.local
 .env*.local
 
-# Local menu data store. Real deployments use a hosted store instead.
-data/menus.json
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# --- menus ---
+# Local menu data store. Hosted deployments use a real database instead.
+menus/data/

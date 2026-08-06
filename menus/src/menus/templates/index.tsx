@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 import { FoodMenu } from "./FoodMenu";
-import { DrinksMenu } from "./DrinksMenu";
+import { WineMenu } from "./WineMenu";
 import type { MenuContent } from "@/lib/schema";
 
 /**
@@ -12,7 +12,7 @@ import type { MenuContent } from "@/lib/schema";
  */
 const TEMPLATES: Record<string, (content: MenuContent) => ReactElement> = {
   food: (content) => <FoodMenu content={content} />,
-  drinks: (content) => <DrinksMenu content={content} />,
+  wine: (content) => <WineMenu content={content} />,
 };
 
 export function renderMenuDocument(

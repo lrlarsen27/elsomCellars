@@ -56,7 +56,7 @@ export default function LoginPage() {
           padding: 28,
         }}
       >
-        <h1 style={{ margin: "0 0 4px", fontSize: 20, fontWeight: 600 }}>Menu Editor</h1>
+        <h1 style={{ margin: "0 0 4px", fontSize: 20, fontWeight: 600 }}>Elsom Cellars</h1>
         <p style={{ margin: "0 0 20px", color: "var(--muted)", fontSize: 13 }}>
           Enter the shared passcode to continue.
         </p>

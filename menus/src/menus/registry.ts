@@ -2,7 +2,7 @@
  * Metadata for the two menus. Kept free of any `@react-pdf/renderer` imports
  * so server components and API routes can read it without pulling the PDF
  * engine into the server bundle. The actual templates live in
- * `src/menus/templates/index.ts`, which is imported by client code only.
+ * `src/menus/templates/index.tsx`, which is imported by client code only.
  */
 
 export type MenuMeta = {
@@ -15,12 +15,12 @@ export const MENUS: MenuMeta[] = [
   {
     id: "food",
     label: "Food Menu",
-    description: "Starters, mains, and desserts.",
+    description: "Small plates, boards, and things to share.",
   },
   {
-    id: "drinks",
-    label: "Drinks Menu",
-    description: "Cocktails, wine, and non-alcoholic.",
+    id: "wine",
+    label: "Wine Menu",
+    description: "Tasting flights, whites, reds, and bottles.",
   },
 ];
 
