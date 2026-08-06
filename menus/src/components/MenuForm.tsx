@@ -2,6 +2,16 @@
 
 import type { MenuBlock, MenuContent, MenuItem, DietaryTag } from "@/lib/schema";
 import { DIETARY_TAGS, DIETARY_TAG_LABELS, blankItem, blankSection } from "@/lib/schema";
+import {
+  AddIcon,
+  ArrowDownwardIcon,
+  ArrowUpwardIcon,
+  CheckIcon,
+  CloseIcon,
+  DeleteIcon,
+  NotesIcon,
+  ViewColumnIcon,
+} from "@/components/Icon";
 
 /**
  * The entire editing surface.
@@ -45,14 +55,20 @@ export function MenuForm({ content, onChange, placement }: Props) {
   }
 
   return (
-    <div style={{ display: "grid", gap: 22 }}>
-      <div>
-        <label htmlFor="menu-season">Season label</label>
-        <input
-          id="menu-season"
-          value={content.season}
-          onChange={(event) => onChange({ ...content, season: event.target.value })}
-        />
+    <div style={{ display: "grid", gap: 16 }}>
+      <div className="md-card" style={{ padding: 20 }}>
+        <p className="md-label-small md-on-surface-variant" style={{ marginBottom: 16 }}>
+          Header
+        </p>
+        <div className="md-field">
+          <input
+            id="menu-season"
+            placeholder=" "
+            value={content.season}
+            onChange={(event) => onChange({ ...content, season: event.target.value })}
+          />
+          <label htmlFor="menu-season">Season label</label>
+        </div>
       </div>
 
       {content.blocks.map((block, index) => (
@@ -68,35 +84,40 @@ export function MenuForm({ content, onChange, placement }: Props) {
         />
       ))}
 
-      <div style={{ display: "flex", gap: 8 }}>
+      <div>
         <button
           type="button"
+          className="md-button tonal"
           onClick={() => onChange({ ...content, blocks: [...content.blocks, blankSection()] })}
         >
-          + Add section
+          <AddIcon />
+          <span>Add section</span>
         </button>
       </div>
 
-      <div style={{ display: "grid", gap: 12, paddingTop: 8, borderTop: "1px solid var(--line)" }}>
-        <div>
-          <label htmlFor="menu-disclaimer">Footer — disclaimer</label>
+      <div className="md-card" style={{ display: "grid", gap: 16, padding: 20 }}>
+        <p className="md-label-small md-on-surface-variant">Footer</p>
+        <div className="md-field">
           <textarea
             id="menu-disclaimer"
             rows={2}
+            placeholder=" "
             value={content.disclaimer}
             onChange={(event) => onChange({ ...content, disclaimer: event.target.value })}
           />
+          <label htmlFor="menu-disclaimer">Disclaimer</label>
         </div>
-        <div>
-          <label htmlFor="menu-service">Footer — service charge</label>
+        <div className="md-field">
           <textarea
             id="menu-service"
             rows={2}
+            placeholder=" "
             value={content.serviceCharge}
             onChange={(event) => onChange({ ...content, serviceCharge: event.target.value })}
           />
+          <label htmlFor="menu-service">Service charge</label>
         </div>
-        <p style={{ margin: 0, fontSize: 12, color: "var(--muted)" }}>
+        <p className="md-body-small md-on-surface-variant">
           The dietary legend line is part of the design and isn&apos;t editable here.
         </p>
       </div>
@@ -121,85 +142,104 @@ function BlockEditor({
   onRemove: () => void;
   onMove: (direction: -1 | 1) => void;
 }) {
-  return (
-    <section
-      style={{
-        border: "1px solid var(--line)",
-        borderRadius: 8,
-        padding: 16,
-        background: "var(--surface)",
-      }}
-    >
-      {placement ? (
-        <p
-          style={{
-            margin: "0 0 10px",
-            fontSize: 11,
-            letterSpacing: "0.06em",
-            textTransform: "uppercase",
-            color: "var(--muted)",
-          }}
-        >
-          Prints on {placement}
-        </p>
-      ) : null}
+  const isNote = block.kind === "note";
 
-      <div style={{ display: "flex", gap: 6, alignItems: "flex-end", marginBottom: 14 }}>
-        <div style={{ flexGrow: 1 }}>
-          <label htmlFor={`block-${block.id}`}>
-            {block.kind === "note" ? "Note heading" : "Section"}
-          </label>
-          <input
-            id={`block-${block.id}`}
-            value={block.kind === "note" ? block.heading : block.title}
-            onChange={(event) =>
-              onChange(
-                block.kind === "note"
-                  ? { ...block, heading: event.target.value }
-                  : { ...block, title: event.target.value },
-              )
-            }
-          />
+  return (
+    <section className="md-card" style={{ padding: 20 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          flexWrap: "wrap",
+          marginBottom: 16,
+        }}
+      >
+        {/* Where this lands on the sheet — read-only, recomputed as you type. */}
+        {placement ? (
+          <span className="md-chip assist">
+            <ViewColumnIcon size="sm" />
+            <span>{placement}</span>
+          </span>
+        ) : null}
+
+        {isNote ? (
+          <span className="md-chip assist" style={{ background: "var(--md-sys-color-secondary-container)", color: "var(--md-sys-color-on-secondary-container)" }}>
+            <NotesIcon size="sm" />
+            <span>Note</span>
+          </span>
+        ) : null}
+
+        <div style={{ display: "flex", gap: 4, marginLeft: "auto" }}>
+          <button
+            type="button"
+            className="md-icon-button"
+            onClick={() => onMove(-1)}
+            disabled={isFirst}
+            aria-label="Move section up"
+            title="Move up"
+          >
+            <ArrowUpwardIcon />
+          </button>
+          <button
+            type="button"
+            className="md-icon-button"
+            onClick={() => onMove(1)}
+            disabled={isLast}
+            aria-label="Move section down"
+            title="Move down"
+          >
+            <ArrowDownwardIcon />
+          </button>
+          <button
+            type="button"
+            className="md-icon-button danger"
+            onClick={onRemove}
+            aria-label="Remove section"
+            title="Remove section"
+          >
+            <DeleteIcon />
+          </button>
         </div>
-        <button
-          type="button"
-          className="subtle"
-          onClick={() => onMove(-1)}
-          disabled={isFirst}
-          aria-label="Move up"
-          style={{ marginBottom: 7 }}
-        >
-          ↑
-        </button>
-        <button
-          type="button"
-          className="subtle"
-          onClick={() => onMove(1)}
-          disabled={isLast}
-          aria-label="Move down"
-          style={{ marginBottom: 7 }}
-        >
-          ↓
-        </button>
-        <button type="button" className="subtle" onClick={onRemove} style={{ marginBottom: 7 }}>
-          Remove
-        </button>
+      </div>
+
+      <div className="md-field">
+        <input
+          id={`block-${block.id}`}
+          placeholder=" "
+          value={block.kind === "note" ? block.heading : block.title}
+          onChange={(event) =>
+            onChange(
+              block.kind === "note"
+                ? { ...block, heading: event.target.value }
+                : { ...block, title: event.target.value },
+            )
+          }
+        />
+        <label htmlFor={`block-${block.id}`}>
+          {block.kind === "note" ? "Note heading" : "Section title"}
+        </label>
       </div>
 
       {block.kind === "note" ? (
-        <textarea
-          aria-label="Note text"
-          rows={3}
-          value={block.body}
-          onChange={(event) => onChange({ ...block, body: event.target.value })}
-        />
+        <div className="md-field" style={{ marginTop: 16 }}>
+          <textarea
+            id={`note-body-${block.id}`}
+            rows={4}
+            placeholder=" "
+            value={block.body}
+            onChange={(event) => onChange({ ...block, body: event.target.value })}
+          />
+          <label htmlFor={`note-body-${block.id}`}>Note text</label>
+        </div>
       ) : (
         <>
-          <div style={{ display: "grid", gap: 14 }}>
-            {block.items.map((item) => (
+          <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
+            {block.items.map((item, index) => (
               <ItemEditor
                 key={item.id}
                 item={item}
+                index={index}
                 onChange={(next) =>
                   onChange({
                     ...block,
@@ -220,10 +260,12 @@ function BlockEditor({
 
           <button
             type="button"
+            className="md-button text"
             onClick={() => onChange({ ...block, items: [...block.items, blankItem()] })}
-            style={{ marginTop: 12, fontSize: 13 }}
+            style={{ marginTop: 12 }}
           >
-            + Add item
+            <AddIcon />
+            <span>Add item</span>
           </button>
         </>
       )}
@@ -233,10 +275,12 @@ function BlockEditor({
 
 function ItemEditor({
   item,
+  index,
   onChange,
   onRemove,
 }: {
   item: MenuItem;
+  index: number;
   onChange: (next: MenuItem) => void;
   onRemove: () => void;
 }) {
@@ -248,79 +292,114 @@ function ItemEditor({
   }
 
   return (
-    <div style={{ display: "grid", gap: 6, paddingTop: 12, borderTop: "1px solid var(--line)" }}>
-      <div style={{ display: "flex", gap: 8 }}>
-        <input
-          aria-label="Item name"
-          placeholder="Item name"
-          value={item.name}
-          onChange={(event) => onChange({ ...item, name: event.target.value })}
-        />
-        <input
-          aria-label="Price"
-          placeholder="Price"
-          value={item.price}
-          onChange={(event) => onChange({ ...item, price: event.target.value })}
-          style={{ width: 78, flexShrink: 0 }}
-        />
+    <div
+      style={{
+        // Items nest one surface level up from the card they sit in, so the
+        // group reads as a unit without another border inside a border.
+        ["--md-field-bg" as string]: "var(--md-sys-color-surface-container-low)",
+        display: "grid",
+        gap: 12,
+        padding: 12,
+        borderRadius: "var(--md-sys-shape-corner-small)",
+        background: "var(--md-sys-color-surface-container-low)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div className="md-field dense" style={{ flexGrow: 1 }}>
+          <input
+            id={`item-name-${item.id}`}
+            placeholder=" "
+            value={item.name}
+            onChange={(event) => onChange({ ...item, name: event.target.value })}
+          />
+          <label htmlFor={`item-name-${item.id}`}>Item {index + 1}</label>
+        </div>
+        <div className="md-field dense" style={{ width: 96, flexShrink: 0 }}>
+          <input
+            id={`item-price-${item.id}`}
+            placeholder=" "
+            value={item.price}
+            onChange={(event) => onChange({ ...item, price: event.target.value })}
+          />
+          <label htmlFor={`item-price-${item.id}`}>Price</label>
+        </div>
         <button
           type="button"
-          className="subtle"
-          aria-label={`Remove ${item.name || "item"}`}
+          className="md-icon-button danger"
+          aria-label={`Remove ${item.name || `item ${index + 1}`}`}
+          title="Remove item"
           onClick={onRemove}
-          style={{ flexShrink: 0 }}
         >
-          ✕
+          <CloseIcon />
         </button>
       </div>
 
-      <textarea
-        aria-label="Description"
-        placeholder="Description"
-        rows={2}
-        value={item.description}
-        onChange={(event) => onChange({ ...item, description: event.target.value })}
-      />
-
-      <input
-        aria-label="Add-on"
-        placeholder="Add-on, e.g. - add grilled chicken +$6 (printed in bold)"
-        value={item.addOn}
-        onChange={(event) => onChange({ ...item, addOn: event.target.value })}
-      />
-
-      <input
-        aria-label="Pairing"
-        placeholder="Pairing, e.g. Pairs with 2024 Albarino"
-        value={item.pairing}
-        onChange={(event) => onChange({ ...item, pairing: event.target.value })}
-      />
-
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-        <span style={{ fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--muted)" }}>
-          Dietary
-        </span>
-        {DIETARY_TAGS.map((tag) => {
-          const active = item.tags.includes(tag);
-          return (
-            <button
-              key={tag}
-              type="button"
-              onClick={() => toggleTag(tag)}
-              aria-pressed={active}
-              style={{
-                padding: "2px 8px",
-                fontSize: 12,
-                background: active ? "var(--ink)" : "var(--surface)",
-                color: active ? "#fff" : "var(--muted)",
-                borderColor: active ? "var(--ink)" : "var(--line)",
-              }}
-            >
-              {DIETARY_TAG_LABELS[tag]}
-            </button>
-          );
-        })}
+      <div className="md-field dense">
+        <textarea
+          id={`item-description-${item.id}`}
+          rows={2}
+          placeholder=" "
+          value={item.description}
+          onChange={(event) => onChange({ ...item, description: event.target.value })}
+        />
+        <label htmlFor={`item-description-${item.id}`}>Description</label>
       </div>
+
+      <div>
+        <div className="md-field dense">
+          <input
+            id={`item-addon-${item.id}`}
+            placeholder=" "
+            value={item.addOn}
+            onChange={(event) => onChange({ ...item, addOn: event.target.value })}
+          />
+          <label htmlFor={`item-addon-${item.id}`}>Add-on</label>
+        </div>
+        <p className="md-body-small md-on-surface-variant" style={{ margin: "4px 12px 0" }}>
+          Printed in bold after the description, e.g. “– add grilled chicken +$6”.
+        </p>
+      </div>
+
+      <div>
+        <div className="md-field dense">
+          <input
+            id={`item-pairing-${item.id}`}
+            placeholder=" "
+            value={item.pairing}
+            onChange={(event) => onChange({ ...item, pairing: event.target.value })}
+          />
+          <label htmlFor={`item-pairing-${item.id}`}>Pairing</label>
+        </div>
+        <p className="md-body-small md-on-surface-variant" style={{ margin: "4px 12px 0" }}>
+          Its own line when present, e.g. “Pairs with 2024 Albarino”.
+        </p>
+      </div>
+
+      <fieldset style={{ margin: 0, padding: 0, border: "none" }}>
+        <legend
+          className="md-label-small md-on-surface-variant"
+          style={{ padding: 0, marginBottom: 8 }}
+        >
+          Dietary
+        </legend>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {DIETARY_TAGS.map((tag) => {
+            const active = item.tags.includes(tag);
+            return (
+              <button
+                key={tag}
+                type="button"
+                className="md-chip"
+                onClick={() => toggleTag(tag)}
+                aria-pressed={active}
+              >
+                {active ? <CheckIcon size="sm" /> : null}
+                <span>{DIETARY_TAG_LABELS[tag]}</span>
+              </button>
+            );
+          })}
+        </div>
+      </fieldset>
     </div>
   );
 }

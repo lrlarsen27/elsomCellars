@@ -2,6 +2,7 @@ import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/render
 import { theme } from "./theme";
 import { fonts } from "./fonts";
 import { ElsomWordmark, CellarsMark } from "./logo";
+import { LEGEND } from "./legend";
 import { flowBlocksIntoColumns } from "./layout";
 import type { ColumnFragment } from "./layout";
 import { DIETARY_TAG_LABELS } from "@/lib/schema";
@@ -16,19 +17,6 @@ import type { MenuContent, MenuItem } from "@/lib/schema";
  * slots each block lands in, based on how much text there is. See that file for
  * how the estimate works and where it deviates from the artboard.
  */
-
-/**
- * The footer legend. Fixed furniture rather than editable copy: it documents
- * the dietary tag vocabulary, which is itself fixed in the schema. If a tag is
- * ever added there, add its gloss here too.
- */
-const LEGEND: Array<[string, string]> = [
-  [DIETARY_TAG_LABELS.gf, "Gluten free"],
-  [DIETARY_TAG_LABELS["gf+"], "Gluten free option"],
-  [DIETARY_TAG_LABELS.v, "Vegan"],
-  [DIETARY_TAG_LABELS["v+"], "Vegan option"],
-  [DIETARY_TAG_LABELS.df, "Dairy free"],
-];
 
 const styles = StyleSheet.create({
   page: {

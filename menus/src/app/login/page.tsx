@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ErrorIcon } from "@/components/Icon";
+import { ElsomLogo } from "@/components/Logo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -47,41 +49,61 @@ export default function LoginPage() {
     >
       <form
         onSubmit={handleSubmit}
-        style={{
-          width: "100%",
-          maxWidth: 320,
-          background: "var(--surface)",
-          border: "1px solid var(--line)",
-          borderRadius: 10,
-          padding: 28,
-        }}
+        className="md-card"
+        style={{ width: "100%", maxWidth: 360, padding: 32 }}
       >
-        <h1 style={{ margin: "0 0 4px", fontSize: 20, fontWeight: 600 }}>Elsom Cellars</h1>
-        <p style={{ margin: "0 0 20px", color: "var(--muted)", fontSize: 13 }}>
+        {/*
+          Decorative: the heading directly below already reads "Elsom Cellars",
+          and without this a screen reader announces the name twice.
+        */}
+        <div style={{ marginBottom: 20, color: "var(--elsom-gold)" }}>
+          <ElsomLogo height={52} decorative />
+        </div>
+
+        <h1 className="md-display-medium" style={{ marginBottom: 4 }}>
+          Elsom Cellars
+        </h1>
+        <p className="md-body-medium md-on-surface-variant" style={{ marginBottom: 28 }}>
           Enter the shared passcode to continue.
         </p>
 
-        <label htmlFor="passcode">Passcode</label>
-        <input
-          id="passcode"
-          type="password"
-          value={passcode}
-          onChange={(event) => setPasscode(event.target.value)}
-          autoFocus
-          autoComplete="current-password"
-        />
+        <div className="md-field">
+          <input
+            id="passcode"
+            type="password"
+            placeholder=" "
+            value={passcode}
+            onChange={(event) => setPasscode(event.target.value)}
+            autoFocus
+            autoComplete="current-password"
+            aria-describedby={error ? "passcode-error" : undefined}
+          />
+          <label htmlFor="passcode">Password</label>
+        </div>
 
         {error ? (
-          <p style={{ color: "var(--danger)", fontSize: 13, margin: "10px 0 0" }} role="alert">
-            {error}
-          </p>
+          <div
+            id="passcode-error"
+            role="alert"
+            className="md-body-small"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              margin: "8px 4px 0",
+              color: "var(--md-sys-color-error)",
+            }}
+          >
+            <ErrorIcon size="sm" />
+            <span>{error}</span>
+          </div>
         ) : null}
 
         <button
           type="submit"
-          className="primary"
+          className="md-button filled"
           disabled={busy || passcode.length === 0}
-          style={{ width: "100%", marginTop: 18 }}
+          style={{ width: "100%", marginTop: 24 }}
         >
           {busy ? "Checking…" : "Sign in"}
         </button>

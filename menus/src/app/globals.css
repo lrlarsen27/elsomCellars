@@ -1,13 +1,177 @@
-:root {
-  --ink: #1a1a1a;
-  --muted: #6b6b6b;
-  --line: #e0dcd4;
-  --paper: #faf8f4;
-  --surface: #ffffff;
-  --accent: #7a2e2e;
-  --danger: #a33;
-  --radius: 6px;
+/**
+ * Material Design 3, in Elsom's colors.
+ *
+ * This file is the app's design system: tokens first, then the components built
+ * from them. Nothing here touches the printed menu — the PDF template has its
+ * own tokens in `src/menus/templates/theme.ts` and is deliberately unaffected by
+ * anything on this page.
+ *
+ * The M3 role names are kept verbatim (`--md-sys-color-primary`, and so on) so
+ * the mapping to the spec stays checkable. What changed is the palette they're
+ * filled with: the key colors are read from the menu artboard rather than from
+ * Material's baseline purple.
+ */
+
+/* ---------------------------------------------------------------- fonts --- */
+
+/*
+ * Both families are already in `public/fonts/` for the PDF, so the web UI costs
+ * no new files. `public/fonts/` is excluded from the auth matcher in
+ * `src/middleware.ts`, which is why these load on the login screen too.
+ *
+ * Barlow Condensed carries the whole Material type scale except display.
+ * Cormorant is 651KB, so it's used only for the two display headings — the
+ * login title and the menu index — and never for anything set at body size.
+ */
+
+@font-face {
+  font-family: "Barlow Condensed";
+  src: url("/fonts/barlow-condensed-400.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
 }
+
+@font-face {
+  font-family: "Barlow Condensed";
+  src: url("/fonts/barlow-condensed-500.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Cormorant Garamond";
+  src: url("/fonts/cormorant-garamond-400.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/*
+ * Bold and italic Cormorant exist only for the menu preview — the bold run that
+ * follows a description, and the chef's note. Without them the browser
+ * synthesises both by slanting and smearing the regular face, which is visibly
+ * not what the PDF embeds. Declared here but only downloaded on the editor
+ * page, since nothing else uses either face.
+ */
+@font-face {
+  font-family: "Cormorant Garamond";
+  src: url("/fonts/cormorant-garamond-700.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Cormorant Garamond";
+  src: url("/fonts/cormorant-garamond-400-italic.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* ---------------------------------------------------------------- tokens -- */
+
+:root {
+  /*
+   * Color roles. The three key colors come from the menu itself:
+   *
+   *   primary   #7d6640  the gold used for every section header and price
+   *   secondary #6f6455  the warm body tone descriptions are set in
+   *   error     #7a2e2e  the wine maroon — it was declared in this file before
+   *                      and used nowhere; it now carries destructive actions
+   *
+   * Neutrals are tinted to the same hue (~37°) rather than gray, so white cards
+   * sit on warm paper the way ink sits on the printed sheet.
+   *
+   * One deliberate departure: the artboard gold is #8c734b, and primary is a
+   * shade darker. #8c734b measures 4.50:1 against white and 4.28:1 against the
+   * cream surface — under WCAG AA for text either way, and primary carries
+   * button labels and focused field labels. #816840 is 5.27:1 and 5.01:1. The
+   * printed menu is unaffected and still uses the exact artboard value; the
+   * logotype does too, via --elsom-gold below.
+   */
+
+  --md-sys-color-primary: #816840;
+  --md-sys-color-on-primary: #ffffff;
+  --md-sys-color-primary-container: #f1e8da;
+  --md-sys-color-on-primary-container: #2a2113;
+
+  --md-sys-color-secondary: #6f6455;
+  --md-sys-color-on-secondary: #ffffff;
+  --md-sys-color-secondary-container: #e9e3d7;
+  --md-sys-color-on-secondary-container: #252118;
+
+  --md-sys-color-error: #7a2e2e;
+  --md-sys-color-on-error: #ffffff;
+  --md-sys-color-error-container: #f7e2de;
+  --md-sys-color-on-error-container: #3b1210;
+
+  --md-sys-color-surface: #fbf9f5;
+  --md-sys-color-surface-container-lowest: #ffffff;
+  --md-sys-color-surface-container-low: #f6f2ea;
+  --md-sys-color-surface-container: #f1ece2;
+  --md-sys-color-surface-container-high: #ebe6db;
+  --md-sys-color-surface-container-highest: #e5e0d4;
+
+  --md-sys-color-on-surface: #1e1b16;
+  --md-sys-color-on-surface-variant: #4c463a;
+
+  --md-sys-color-outline: #7e7567;
+  --md-sys-color-outline-variant: #d5cec3;
+
+  --md-sys-color-inverse-surface: #333027;
+  --md-sys-color-inverse-on-surface: #f6f2ea;
+  --md-sys-color-inverse-primary: #cfb181;
+
+  /*
+   * The exact artboard gold, for the logotype only. WCAG's contrast rules
+   * exempt logos (1.4.3), so the mark can hold the true brand value even though
+   * primary above had to be darkened for text. Don't reach for this token for
+   * anything with words in it.
+   */
+  --elsom-gold: #8c734b;
+
+  /* Type. Display is the brand serif; everything else is the condensed face. */
+  --md-ref-typeface-brand: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+  --md-ref-typeface-plain: "Barlow Condensed", "Roboto Condensed", "Segoe UI", sans-serif;
+  /*
+   * Body copy is the one place the condensed face is wrong — menu descriptions
+   * are long and get read closely, and condensed costs legibility at 14px. So
+   * body roles fall to the Material default and then the system stack.
+   */
+  --md-ref-typeface-body: Roboto, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* Shape scale. */
+  --md-sys-shape-corner-extra-small: 4px;
+  --md-sys-shape-corner-small: 8px;
+  --md-sys-shape-corner-medium: 12px;
+  --md-sys-shape-corner-large: 16px;
+  --md-sys-shape-corner-extra-large: 28px;
+  --md-sys-shape-corner-full: 999px;
+
+  /*
+   * Elevation. M3's shadows assume neutral gray surfaces; these are warmed to
+   * the same brown as the neutrals so shadows don't read as a cool cast on the
+   * cream background.
+   */
+  --md-sys-elevation-1: 0 1px 2px rgba(50, 42, 28, 0.24), 0 1px 3px 1px rgba(50, 42, 28, 0.11);
+  --md-sys-elevation-2: 0 1px 2px rgba(50, 42, 28, 0.24), 0 2px 6px 2px rgba(50, 42, 28, 0.12);
+  --md-sys-elevation-3: 0 1px 3px rgba(50, 42, 28, 0.24), 0 4px 8px 3px rgba(50, 42, 28, 0.12);
+
+  /* State layer opacities, straight from the spec. */
+  --md-sys-state-hover-opacity: 0.08;
+  --md-sys-state-focus-opacity: 0.1;
+  --md-sys-state-pressed-opacity: 0.1;
+
+  /* Motion. */
+  --md-sys-motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --md-sys-motion-duration-short: 150ms;
+  --md-sys-motion-duration-medium: 250ms;
+}
+
+/* -------------------------------------------------------------- baseline -- */
 
 * {
   box-sizing: border-box;
@@ -21,89 +185,679 @@ body {
 }
 
 body {
-  background: var(--paper);
-  color: var(--ink);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font-family: var(--md-ref-typeface-body);
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 20px;
+  letter-spacing: 0.25px;
+  -webkit-font-smoothing: antialiased;
 }
 
 a {
   color: inherit;
 }
 
-/* --- Shared controls --- */
+/* ------------------------------------------------------------ type scale -- */
 
-button {
-  font: inherit;
+/*
+ * The M3 roles. Sizes and line heights are the spec's; the tracking values are
+ * adjusted upward for the condensed face, which needs more air between letters
+ * than Roboto does at the same size — most visibly on the label roles, which is
+ * also how the printed menu sets its section headers.
+ */
+
+.md-display-large,
+.md-display-medium {
+  font-family: var(--md-ref-typeface-brand);
+  font-weight: 400;
+  letter-spacing: 0;
+  margin: 0;
+}
+
+.md-display-large {
+  font-size: 44px;
+  line-height: 52px;
+}
+
+.md-display-medium {
+  font-size: 34px;
+  line-height: 42px;
+}
+
+.md-headline-small,
+.md-title-large,
+.md-title-medium,
+.md-title-small,
+.md-label-large,
+.md-label-medium,
+.md-label-small {
+  font-family: var(--md-ref-typeface-plain);
+  margin: 0;
+}
+
+.md-headline-small {
+  font-size: 26px;
+  line-height: 32px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.md-title-large {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 400;
+  letter-spacing: 0.2px;
+}
+
+.md-title-medium {
+  font-size: 17px;
+  line-height: 24px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+
+.md-title-small {
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+
+.md-label-large {
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+
+.md-label-medium {
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 500;
+  letter-spacing: 0.7px;
+}
+
+/* The overline role — section eyebrows, field group headers, the placement
+   chip. Tracked hard, like the section headers on the artboard. */
+.md-label-small {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+}
+
+.md-body-large,
+.md-body-medium,
+.md-body-small {
+  font-family: var(--md-ref-typeface-body);
+  font-weight: 400;
+  margin: 0;
+}
+
+.md-body-large {
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: 0.5px;
+}
+
+.md-body-medium {
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.25px;
+}
+
+.md-body-small {
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.4px;
+}
+
+.md-on-surface-variant {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* ----------------------------------------------------------------- icons -- */
+
+.md-icon {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  fill: currentColor;
+}
+
+.md-icon.sm {
+  width: 18px;
+  height: 18px;
+}
+
+/* --------------------------------------------------------------- buttons -- */
+
+/*
+ * One base plus four variants, as in the spec. The `::before` is the state
+ * layer: a currentColor wash at 8% on hover and 10% on press, which is how M3
+ * expresses interaction instead of swapping background colors outright.
+ */
+
+.md-button {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 24px;
+  border: none;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: transparent;
+  color: var(--md-sys-color-primary);
+  font-family: var(--md-ref-typeface-plain);
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
   cursor: pointer;
-  border-radius: var(--radius);
-  border: 1px solid var(--line);
-  background: var(--surface);
-  padding: 7px 13px;
-  transition: border-color 0.12s ease, background 0.12s ease;
+  transition: box-shadow var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
 }
 
-button:hover:not(:disabled) {
-  border-color: var(--muted);
+/* Leading icons get a tighter leading edge, per the spec's 16/24 padding. */
+.md-button:has(> .md-icon:first-child) {
+  padding-left: 16px;
 }
 
-button:disabled {
-  opacity: 0.45;
+.md-button::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  opacity: 0;
+  transition: opacity var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
+}
+
+.md-button:hover:not(:disabled)::before {
+  opacity: var(--md-sys-state-hover-opacity);
+}
+
+.md-button:active:not(:disabled)::before {
+  opacity: var(--md-sys-state-pressed-opacity);
+}
+
+.md-button:focus-visible {
+  outline: 3px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+.md-button > * {
+  position: relative;
+}
+
+.md-button.filled {
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+}
+
+.md-button.filled:hover:not(:disabled) {
+  box-shadow: var(--md-sys-elevation-1);
+}
+
+.md-button.tonal {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+.md-button.outlined {
+  border: 1px solid var(--md-sys-color-outline);
+}
+
+.md-button.text {
+  padding: 0 12px;
+}
+
+.md-button.text:has(> .md-icon:first-child) {
+  padding-left: 12px;
+  padding-right: 16px;
+}
+
+/* Disabled is a flat on-surface wash at 12%/38%, not reduced opacity — so a
+   disabled filled button doesn't show the page through it. */
+.md-button:disabled {
+  cursor: not-allowed;
+  color: rgba(30, 27, 22, 0.38);
+  box-shadow: none;
+}
+
+.md-button.filled:disabled,
+.md-button.tonal:disabled {
+  background: rgba(30, 27, 22, 0.12);
+}
+
+.md-button.outlined:disabled {
+  border-color: rgba(30, 27, 22, 0.12);
+}
+
+/* Icon button — 40dp target around a 24dp glyph. */
+.md-icon-button {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+}
+
+.md-icon-button::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  opacity: 0;
+  transition: opacity var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
+}
+
+.md-icon-button:hover:not(:disabled)::before {
+  opacity: var(--md-sys-state-hover-opacity);
+}
+
+.md-icon-button:active:not(:disabled)::before {
+  opacity: var(--md-sys-state-pressed-opacity);
+}
+
+.md-icon-button:focus-visible {
+  outline: 3px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+.md-icon-button:disabled {
+  color: rgba(30, 27, 22, 0.38);
   cursor: not-allowed;
 }
 
-button.primary {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: #fff;
+.md-icon-button.danger:hover:not(:disabled) {
+  color: var(--md-sys-color-error);
 }
 
-button.primary:hover:not(:disabled) {
-  background: #000;
+/* ----------------------------------------------------------- text fields -- */
+
+/*
+ * Outlined text fields with floating labels. The label floats using
+ * `:placeholder-shown`, which is why every input here carries a single-space
+ * placeholder — without it the label would never sit down over an empty field.
+ *
+ * Focus is drawn with an inset box-shadow rather than a thicker border so the
+ * field doesn't resize by a pixel when you tab into it.
+ *
+ * `--md-field-bg` is the color the floated label sits on top of; set it on any
+ * container that isn't white.
+ */
+
+.md-field {
+  position: relative;
+  --md-field-bg: var(--md-sys-color-surface-container-lowest);
 }
 
-button.subtle {
-  border-color: transparent;
+.md-field > input,
+.md-field > textarea {
+  width: 100%;
+  margin: 0;
+  padding: 20px 16px 6px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-extra-small);
   background: transparent;
-  color: var(--muted);
-  padding: 3px 7px;
+  color: var(--md-sys-color-on-surface);
+  font-family: var(--md-ref-typeface-body);
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.25px;
+}
+
+.md-field > input {
+  height: 52px;
+}
+
+.md-field > textarea {
+  display: block;
+  min-height: 68px;
+  padding-top: 22px;
+  resize: vertical;
+}
+
+.md-field > input:hover,
+.md-field > textarea:hover {
+  border-color: var(--md-sys-color-on-surface-variant);
+}
+
+.md-field > input:focus,
+.md-field > textarea:focus {
+  outline: none;
+  border-color: var(--md-sys-color-primary);
+  box-shadow: inset 0 0 0 1px var(--md-sys-color-primary);
+}
+
+.md-field > label {
+  position: absolute;
+  top: 16px;
+  left: 12px;
+  padding: 0 4px;
+  color: var(--md-sys-color-on-surface-variant);
+  font-family: var(--md-ref-typeface-plain);
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 400;
+  letter-spacing: 0.3px;
+  pointer-events: none;
+  transition: all var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
+}
+
+.md-field > input:focus + label,
+.md-field > input:not(:placeholder-shown) + label,
+.md-field > textarea:focus + label,
+.md-field > textarea:not(:placeholder-shown) + label {
+  top: -8px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.5px;
+  background: var(--md-field-bg);
+}
+
+.md-field > input:focus + label,
+.md-field > textarea:focus + label {
+  color: var(--md-sys-color-primary);
+}
+
+/*
+ * A denser field for the repeated item rows. The menu runs to about twenty
+ * items with five fields each; at the full 52px every section card would be a
+ * screen tall on its own.
+ */
+.md-field.dense > input {
+  height: 44px;
+  padding: 17px 12px 4px;
+}
+
+.md-field.dense > textarea {
+  min-height: 56px;
+  padding: 19px 12px 4px;
+}
+
+.md-field.dense > label {
+  top: 12px;
+  left: 8px;
+  font-size: 14px;
+}
+
+.md-field.dense > input:focus + label,
+.md-field.dense > input:not(:placeholder-shown) + label,
+.md-field.dense > textarea:focus + label,
+.md-field.dense > textarea:not(:placeholder-shown) + label {
+  top: -8px;
   font-size: 12px;
 }
 
-button.subtle:hover:not(:disabled) {
-  color: var(--danger);
-  border-color: var(--line);
+/* ----------------------------------------------------------------- chips -- */
+
+/*
+ * Filter chips, used for the dietary tags. Selected state is
+ * secondary-container with a leading checkmark — the spec's own pattern, and it
+ * makes the selection legible without relying on color alone.
+ */
+
+.md-chip {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  font-family: var(--md-ref-typeface-plain);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  letter-spacing: 0.6px;
+  cursor: pointer;
+  transition: background var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
 }
 
-input,
-textarea {
-  font: inherit;
+.md-chip::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  opacity: 0;
+  transition: opacity var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
+}
+
+.md-chip:hover::before {
+  opacity: var(--md-sys-state-hover-opacity);
+}
+
+.md-chip > * {
+  position: relative;
+}
+
+.md-chip:focus-visible {
+  outline: 3px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+.md-chip[aria-pressed="true"] {
+  background: var(--md-sys-color-secondary-container);
+  border-color: transparent;
+  color: var(--md-sys-color-on-secondary-container);
+  padding-left: 8px;
+}
+
+/* Assist chip — not interactive, used for the "prints on" placement readout. */
+.md-chip.assist {
+  cursor: default;
+  background: var(--md-sys-color-primary-container);
+  border-color: transparent;
+  color: var(--md-sys-color-on-primary-container);
+  padding-left: 8px;
+}
+
+.md-chip.assist::before {
+  display: none;
+}
+
+/* ----------------------------------------------------------------- cards -- */
+
+/*
+ * One card treatment everywhere, taken from the login card: white, no outline,
+ * 16px corners, elevation 1. There was an outlined variant and an `elevated`
+ * modifier; both are gone so no card can drift from any other.
+ */
+.md-card {
+  border: none;
+  border-radius: var(--md-sys-shape-corner-large);
+  background: var(--md-sys-color-surface-container-lowest);
+  box-shadow: var(--md-sys-elevation-1);
+}
+
+/*
+ * The error card standing in for M3's banner, which the spec dropped in the
+ * move from M2. error-container is quiet enough to live above a form without
+ * shouting, and still unmistakably not a normal card.
+ */
+.md-card.error {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+}
+
+/* ------------------------------------------------------------ app bar ----- */
+
+.md-top-app-bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 64px;
+  padding: 0 12px;
+  background: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface);
+}
+
+.md-top-app-bar .title {
+  margin: 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------- snackbar --- */
+
+/*
+ * Save feedback. Inverse surface, bottom-center, elevation 3 — the spec's
+ * shape. It replaces the small gray "Saved" text that used to sit in the header
+ * and was easy to miss.
+ */
+
+.md-snackbar {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 12px 16px;
+  border-radius: var(--md-sys-shape-corner-extra-small);
+  background: var(--md-sys-color-inverse-surface);
+  color: var(--md-sys-color-inverse-on-surface);
+  box-shadow: var(--md-sys-elevation-3);
+  transform: translateX(-50%);
+  animation: md-snackbar-in var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-standard);
+}
+
+.md-snackbar .action {
+  color: var(--md-sys-color-inverse-primary);
+}
+
+@keyframes md-snackbar-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+}
+
+/* ------------------------------------------------------------- list items - */
+
+.md-list-item {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 16px;
   width: 100%;
-  padding: 7px 9px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
+  padding: 16px;
+  border-radius: var(--md-sys-shape-corner-medium);
+  text-decoration: none;
   color: inherit;
 }
 
-input:focus,
-textarea:focus {
-  outline: 2px solid var(--ink);
-  outline-offset: -1px;
-  border-color: transparent;
+.md-list-item::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--md-sys-color-on-surface);
+  opacity: 0;
+  transition: opacity var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
 }
 
-textarea {
-  resize: vertical;
-  min-height: 40px;
+.md-list-item:hover::before {
+  opacity: var(--md-sys-state-hover-opacity);
 }
 
-label {
-  display: block;
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 4px;
+.md-list-item:focus-visible {
+  outline: 3px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+.md-list-item > * {
+  position: relative;
+}
+
+/* The circular leading avatar M3 puts in front of a two-line list item. */
+.md-list-item .leading {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+
+.md-divider {
+  height: 1px;
+  border: none;
+  margin: 0;
+  background: var(--md-sys-color-outline-variant);
+}
+
+/* -------------------------------------------------------- editor panes --- */
+
+/*
+ * Form and preview side by side. Media queries can't live in inline styles,
+ * which is the only reason this isn't in the component.
+ *
+ * Below 1100px the preview drops under the form and stops sticking — a sheet
+ * scaled into half of a narrow window is too small to read anything in, and a
+ * sticky panel would eat the space the form needs.
+ */
+.editor-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+@media (min-width: 1100px) {
+  .editor-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 460px);
+  }
+
+  .editor-preview {
+    position: sticky;
+    /* App bar (64) plus the main padding (24). */
+    top: 88px;
+    max-height: calc(100vh - 112px);
+    overflow-y: auto;
+    /* Room for the scrollbar so it doesn't sit on the sheet. */
+    padding-right: 4px;
+  }
+}
+
+/* ------------------------------------------------------- reduced motion --- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
