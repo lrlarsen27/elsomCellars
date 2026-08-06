@@ -1,0 +1,109 @@
+:root {
+  --ink: #1a1a1a;
+  --muted: #6b6b6b;
+  --line: #e0dcd4;
+  --paper: #faf8f4;
+  --surface: #ffffff;
+  --accent: #7a2e2e;
+  --danger: #a33;
+  --radius: 6px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+a {
+  color: inherit;
+}
+
+/* --- Shared controls --- */
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  padding: 7px 13px;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+button.primary {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+
+button.primary:hover:not(:disabled) {
+  background: #000;
+}
+
+button.subtle {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  padding: 3px 7px;
+  font-size: 12px;
+}
+
+button.subtle:hover:not(:disabled) {
+  color: var(--danger);
+  border-color: var(--line);
+}
+
+input,
+textarea {
+  font: inherit;
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: inherit;
+}
+
+input:focus,
+textarea:focus {
+  outline: 2px solid var(--ink);
+  outline-offset: -1px;
+  border-color: transparent;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 40px;
+}
+
+label {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
