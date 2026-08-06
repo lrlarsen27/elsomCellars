@@ -18,9 +18,11 @@ import { DIETARY_TAGS, DIETARY_TAG_LABELS, blankItem, blankSection } from "@/lib
 type Props = {
   content: MenuContent;
   onChange: (next: MenuContent) => void;
+  /** Block id → which column(s) it lands in. Read-only feedback. */
+  placement: Record<string, string>;
 };
 
-export function MenuForm({ content, onChange }: Props) {
+export function MenuForm({ content, onChange, placement }: Props) {
   function replaceBlock(blockId: string, next: MenuBlock) {
     onChange({
       ...content,
@@ -57,6 +59,7 @@ export function MenuForm({ content, onChange }: Props) {
         <BlockEditor
           key={block.id}
           block={block}
+          placement={placement[block.id]}
           isFirst={index === 0}
           isLast={index === content.blocks.length - 1}
           onChange={(next) => replaceBlock(block.id, next)}
@@ -103,6 +106,7 @@ export function MenuForm({ content, onChange }: Props) {
 
 function BlockEditor({
   block,
+  placement,
   isFirst,
   isLast,
   onChange,
@@ -110,6 +114,7 @@ function BlockEditor({
   onMove,
 }: {
   block: MenuBlock;
+  placement?: string;
   isFirst: boolean;
   isLast: boolean;
   onChange: (next: MenuBlock) => void;
@@ -125,6 +130,20 @@ function BlockEditor({
         background: "var(--surface)",
       }}
     >
+      {placement ? (
+        <p
+          style={{
+            margin: "0 0 10px",
+            fontSize: 11,
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+            color: "var(--muted)",
+          }}
+        >
+          Prints on {placement}
+        </p>
+      ) : null}
+
       <div style={{ display: "flex", gap: 6, alignItems: "flex-end", marginBottom: 14 }}>
         <div style={{ flexGrow: 1 }}>
           <label htmlFor={`block-${block.id}`}>

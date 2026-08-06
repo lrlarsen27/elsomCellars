@@ -2,20 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import dynamic from "next/dynamic";
 import { MenuForm } from "./MenuForm";
-import { flowBlocksIntoColumns } from "@/menus/templates/layout";
+import { flowBlocksIntoColumns, placementByBlock } from "@/menus/templates/layout";
 import type { MenuContent } from "@/lib/schema";
 
-// PDFViewer needs a browser, so it must not render on the server.
-const PdfPreview = dynamic(() => import("./PdfPreview"), {
-  ssr: false,
-  loading: () => <PreviewMessage>Preparing preview…</PreviewMessage>,
-});
-
-// Re-rendering the PDF on every keystroke is visibly janky. Waiting for a
-// pause in typing keeps the preview feeling live without the churn.
-const PREVIEW_DEBOUNCE_MS = 400;
+/**
+ * A plain editing page. No PDF is rendered here — the layout engine only runs
+ * when someone exports.
+ *
+ * What survives from the layout engine is the *placement*, which is cheap to
+ * compute and shown next to each section so nobody has to export a PDF to find
+ * out where their edit landed.
+ */
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
@@ -30,24 +28,19 @@ export function Editor({
 }) {
   const [content, setContent] = useState<MenuContent>(initialContent);
   const [savedContent, setSavedContent] = useState<MenuContent>(initialContent);
-  const [previewContent, setPreviewContent] = useState<MenuContent>(initialContent);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const isDirty = useMemo(
     () => JSON.stringify(content) !== JSON.stringify(savedContent),
     [content, savedContent],
   );
 
-  // Cheap estimate, same one the template uses to pick column breaks. It warns
-  // early rather than accurately — the preview below is the real answer.
+  // Pure arithmetic over the block list — no PDF engine involved.
   const flow = useMemo(() => flowBlocksIntoColumns(content.blocks), [content.blocks]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setPreviewContent(content), PREVIEW_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [content]);
+  const placement = useMemo(() => placementByBlock(flow.columns), [flow]);
 
   // Don't let someone close the tab on unsaved edits without a nudge.
   useEffect(() => {
@@ -94,16 +87,21 @@ export function Editor({
 
   async function handleDownload() {
     setDownloading(true);
+    setDownloadError(null);
+
     try {
-      // Imported here rather than at module scope so the PDF engine never runs
-      // during server rendering.
+      // The PDF engine is imported only here, at export time. It never loads
+      // as part of the editing page.
       const [{ pdf }, { renderMenuDocument }] = await Promise.all([
         import("@react-pdf/renderer"),
         import("@/menus/templates"),
       ]);
 
       const document = renderMenuDocument(menuId, content);
-      if (!document) return;
+      if (!document) {
+        setDownloadError("No template for this menu.");
+        return;
+      }
 
       const blob = await pdf(document).toBlob();
       const url = URL.createObjectURL(blob);
@@ -112,22 +110,26 @@ export function Editor({
       link.download = `elsom-${menuId}-menu-${slugify(content.season) || "current"}.pdf`;
       link.click();
       URL.revokeObjectURL(url);
+    } catch {
+      setDownloadError("Couldn't build the PDF.");
     } finally {
       setDownloading(false);
     }
   }
 
   return (
-    <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
+    <div style={{ minHeight: "100vh" }}>
       <header
         style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 10,
           display: "flex",
           alignItems: "center",
           gap: 14,
           padding: "12px 20px",
           borderBottom: "1px solid var(--line)",
           background: "var(--surface)",
-          flexShrink: 0,
         }}
       >
         <Link href="/" style={{ color: "var(--muted)", textDecoration: "none", fontSize: 13 }}>
@@ -136,85 +138,62 @@ export function Editor({
         <h1 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>{menuLabel}</h1>
 
         <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--muted)" }}>
-          <StatusLabel state={saveState} isDirty={isDirty} error={saveError} />
+          {saveState === "error" ? (
+            <span style={{ color: "var(--danger)" }}>{saveError}</span>
+          ) : isDirty ? (
+            "Unsaved changes"
+          ) : saveState === "saved" ? (
+            "Saved"
+          ) : null}
         </span>
 
         <button type="button" onClick={handleSave} disabled={!isDirty || saveState === "saving"}>
           {saveState === "saving" ? "Saving…" : "Save"}
         </button>
         <button type="button" className="primary" onClick={handleDownload} disabled={downloading}>
-          {downloading ? "Building…" : "Download PDF"}
+          {downloading ? "Building PDF…" : "Export PDF"}
         </button>
       </header>
 
-      <div style={{ flexGrow: 1, display: "flex", minHeight: 0 }}>
-        <div
-          style={{
-            width: "44%",
-            minWidth: 340,
-            overflowY: "auto",
-            padding: 24,
-            borderRight: "1px solid var(--line)",
-          }}
-        >
-          {flow.overflow ? (
-            <p
-              role="status"
-              style={{
-                margin: "0 0 18px",
-                padding: "10px 12px",
-                border: "1px solid var(--line)",
-                borderLeft: "3px solid var(--danger)",
-                borderRadius: "var(--radius)",
-                fontSize: 13,
-                color: "var(--muted)",
-              }}
-            >
-              This is more than fits on the sheet — the last column runs past the
-              bottom of the page. Shorten something, or move a section up so it
-              lands in an earlier column.
-            </p>
-          ) : null}
+      <main style={{ maxWidth: 780, margin: "0 auto", padding: "26px 24px 80px" }}>
+        {flow.overflow ? (
+          <Banner tone="danger">
+            This is more than fits on the sheet — the last column runs past the
+            bottom of the page. Shorten something, or move a section up so it
+            lands in an earlier column.
+          </Banner>
+        ) : null}
 
-          <MenuForm content={content} onChange={handleChange} />
-        </div>
+        {downloadError ? <Banner tone="danger">{downloadError}</Banner> : null}
 
-        <div style={{ flexGrow: 1, background: "#525659", minWidth: 0 }}>
-          <PdfPreview menuId={menuId} content={previewContent} />
-        </div>
-      </div>
+        <p style={{ margin: "0 0 22px", fontSize: 13, color: "var(--muted)" }}>
+          Edit the text below, then <strong>Export PDF</strong> for the printable
+          sheet. Where each section lands is worked out from how long it is — the
+          column shown beside each one updates as you type.
+        </p>
+
+        <MenuForm content={content} onChange={handleChange} placement={placement} />
+      </main>
     </div>
   );
 }
 
-function StatusLabel({
-  state,
-  isDirty,
-  error,
-}: {
-  state: SaveState;
-  isDirty: boolean;
-  error: string | null;
-}) {
-  if (state === "error") return <span style={{ color: "var(--danger)" }}>{error}</span>;
-  if (isDirty) return <>Unsaved changes</>;
-  if (state === "saved") return <>Saved</>;
-  return null;
-}
-
-function PreviewMessage({ children }: { children: React.ReactNode }) {
+function Banner({ tone, children }: { tone: "danger"; children: React.ReactNode }) {
   return (
-    <div
+    <p
+      role="status"
       style={{
-        height: "100%",
-        display: "grid",
-        placeItems: "center",
-        color: "#cfcfcf",
+        margin: "0 0 18px",
+        padding: "10px 12px",
+        border: "1px solid var(--line)",
+        borderLeft: `3px solid var(--${tone})`,
+        borderRadius: "var(--radius)",
         fontSize: 13,
+        color: "var(--muted)",
       }}
     >
       {children}
-    </div>
+    </p>
   );
 }
 

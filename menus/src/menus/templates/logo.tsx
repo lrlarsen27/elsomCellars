@@ -1,11 +1,11 @@
 import { Svg, Path } from "@react-pdf/renderer";
 
 /**
- * GENERATED FILE â€” do not hand-edit the path data.
+ * GENERATED FILE - do not hand-edit the path data.
  *
  * Path data copied verbatim from the Figma SVG exports in `assets/`:
- *   Elsom wordmark  â€” file ciJhmsPGUj0Gge5PKpBzhe, node 22:991
- *   "Cellars" mark  â€” file ciJhmsPGUj0Gge5PKpBzhe, node 22:983
+ *   Elsom wordmark  - file ciJhmsPGUj0Gge5PKpBzhe, node 22:991
+ *   "Cellars" mark  - file ciJhmsPGUj0Gge5PKpBzhe, node 22:983
  *
  * Kept as vector rather than a raster so the logo stays sharp at print
  * resolution. To update: re-export both nodes from Figma into `assets/`

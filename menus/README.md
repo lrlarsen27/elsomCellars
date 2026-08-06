@@ -1,13 +1,13 @@
 # Menus
 
-Sign in with a shared passcode, edit the menu text, download a print-ready PDF.
+Sign in with a shared passcode, edit the menu text, export a print-ready PDF.
 
 Part of the [Elsom Cellars](../README.md) repo.
 
-> **Status:** runs locally and renders the real design. Typecheck is clean,
-> login works, and the exported PDF is two 11×17 pages with Barlow Condensed
-> and Cormorant Garamond embedded and subsetted. Column layout was verified
-> against the artboard column by column.
+> **Status:** runs locally and exports the real design. Verified from an actual
+> exported file: two 11×17 pages, all five typefaces embedded and subsetted,
+> the back-page watermark embedded with its alpha mask, and column placement
+> matching the artboard column by column.
 
 ## The one idea
 
@@ -20,11 +20,24 @@ There is no font picker or column chooser in the UI — not because they're
 disabled, but because `MenuContent` in `src/lib/schema.ts` has nowhere to put
 those values. Formatting can only change by editing the template in the repo.
 
-Column placement isn't stored either. It's computed at render time from how much
-content there is, so nobody chooses it and nobody can break it.
+Column placement isn't stored either. It's computed from how much content there
+is, so nobody chooses it and nobody can break it.
 
-The on-screen preview is rendered by the same code as the download, so the
-preview *is* the PDF. They can't drift apart.
+## The editor is a plain page
+
+Editing is an ordinary web form. **No PDF is rendered while editing** — the
+`@react-pdf/renderer` import is dynamic and only runs when someone presses
+Export. That keeps typing responsive and keeps the page simple.
+
+The one thing carried over from the layout engine is *placement*: each section
+shows which column it will print in ("Front left", or "Front left to Front
+right" when it spans a break). That's cheap arithmetic over the block list, not
+a render, and it updates as you type — so you can tell where an edit landed
+without exporting. It's read-only feedback; placement still isn't editable.
+
+There is deliberately no on-screen replica of the printed menu. Building one
+would mean a second layout implementation in HTML that could drift from the PDF,
+and the PDF is the artefact that matters.
 
 ## The design
 
@@ -67,6 +80,8 @@ Open http://localhost:3000 and sign in with whatever you set `APP_PASSCODE` to.
 | `src/menus/templates/fonts.ts` | Font registration and the fallback switch. |
 | `src/menus/templates/assets/` | The Figma SVG exports the logo was generated from. |
 | `public/fonts/` | The embedded TTFs, with their OFL licences. |
+| `public/brand/` | The back-page watermark PNG. |
+| `src/components/Editor.tsx` | The editing page. Imports the PDF engine only on export. |
 | `src/lib/schema.ts` | What's editable. Adding a field here makes it editable. |
 | `src/lib/seed.ts` | Starting copy, transcribed from the artboards. |
 | `src/lib/store.ts` | Persistence. Swap this one file to change hosting. |
@@ -74,12 +89,11 @@ Open http://localhost:3000 and sign in with whatever you set `APP_PASSCODE` to.
 
 ## Still outstanding
 
-**1. The back-page watermark is missing.** The large watercolour "E" (node
-`22:1137`) is roughly 300 vector paths, and Figma only exports it at 1×, which
-is too coarse to print. Export it as a PNG at 4× or larger, save it to
-`public/brand/watermark-e.png`, and render it behind the back page columns.
+**The wine menu** hasn't been designed — see below.
 
-**2. The wine menu** hasn't been designed — see below.
+One thing to watch: the watermark PNG is 738×741, which is about 247dpi at its
+215pt print size. It's a soft watercolour texture rather than type, so it should
+hold up, but if a printer objects, drop in a larger export at the same path.
 
 ## The layout reproduces the artboard
 
@@ -170,6 +184,11 @@ Chosen deliberately, worth knowing before they surprise you:
 - **Overflow is visible, not prevented.** Past four columns' worth of content,
   the editor warns and the PDF spills onto extra pages rather than dropping
   anything silently.
+- **You can't see the printed result without exporting.** Deliberate — see
+  "The editor is a plain page". The placement labels are the compromise.
+- **Assets are fetched by URL at export time.** The watermark and fonts are
+  loaded from `/brand/` and `/fonts/`, which works in the browser. Rendering
+  the PDF server-side would need absolute URLs or filesystem paths instead.
 - **Cookie auth is a gate, not a vault.** Anyone with the passcode has full
   access.
 

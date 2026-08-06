@@ -73,9 +73,38 @@ const MIN_FRAGMENT_ITEMS = 2;
  * without repeating the heading.
  */
 export type ColumnFragment =
-  | { kind: "section"; id: string; title: string; items: MenuItem[] }
-  | { kind: "section-continued"; id: string; items: MenuItem[] }
-  | { kind: "note"; id: string; heading: string; body: string };
+  | { kind: "section"; id: string; blockId: string; title: string; items: MenuItem[] }
+  | { kind: "section-continued"; id: string; blockId: string; items: MenuItem[] }
+  | { kind: "note"; id: string; blockId: string; heading: string; body: string };
+
+/** Human-readable name for each column slot, in order. */
+export const SLOT_LABELS = ["Front left", "Front right", "Back left", "Back right"] as const;
+
+/**
+ * Which slots each block occupies, keyed by block id.
+ *
+ * The editor shows this so someone can tell where a section will land without
+ * exporting a PDF. It's read-only feedback, not a control — placement still
+ * isn't editable.
+ */
+export function placementByBlock(columns: ColumnFragment[][]): Record<string, string> {
+  const slots: Record<string, number[]> = {};
+
+  columns.forEach((fragments, index) => {
+    for (const fragment of fragments) {
+      if (!slots[fragment.blockId]) slots[fragment.blockId] = [];
+      if (!slots[fragment.blockId].includes(index)) slots[fragment.blockId].push(index);
+    }
+  });
+
+  return Object.fromEntries(
+    Object.entries(slots).map(([blockId, indexes]) => {
+      const first = SLOT_LABELS[indexes[0]];
+      const last = SLOT_LABELS[indexes[indexes.length - 1]];
+      return [blockId, first === last ? first : `${first} to ${last}`];
+    }),
+  );
+}
 
 /** Counts wrapped lines, honouring any explicit newlines in the text. */
 function countLines(text: string, charsPerLine: number): number {
@@ -167,7 +196,13 @@ export function flowBlocksIntoColumns(blocks: MenuBlock[]): FlowResult {
       const height = estimateNoteHeight(block.body);
       if (used[column] > 0 && used[column] + leadingGap() + height > COLUMN_HEIGHT) advance();
 
-      columns[column].push({ kind: "note", id: block.id, heading: block.heading, body: block.body });
+      columns[column].push({
+        kind: "note",
+        id: block.id,
+        blockId: block.id,
+        heading: block.heading,
+        body: block.body,
+      });
       used[column] += leadingGap() + height;
       continue;
     }
@@ -222,8 +257,13 @@ export function flowBlocksIntoColumns(blocks: MenuBlock[]): FlowResult {
         overflow = true;
         columns[column].push(
           isFirstFragment
-            ? { kind: "section", id: block.id, title: block.title, items: [forced] }
-            : { kind: "section-continued", id: `${block.id}-cont`, items: [forced] },
+            ? { kind: "section", id: block.id, blockId: block.id, title: block.title, items: [forced] }
+            : {
+                kind: "section-continued",
+                id: `${block.id}-cont`,
+                blockId: block.id,
+                items: [forced],
+              },
         );
         used[column] += gap + headerHeight + estimateItemHeight(forced);
         isFirstFragment = false;
@@ -232,8 +272,13 @@ export function flowBlocksIntoColumns(blocks: MenuBlock[]): FlowResult {
 
       columns[column].push(
         isFirstFragment
-          ? { kind: "section", id: block.id, title: block.title, items: taken }
-          : { kind: "section-continued", id: `${block.id}-cont-${column}`, items: taken },
+          ? { kind: "section", id: block.id, blockId: block.id, title: block.title, items: taken }
+          : {
+              kind: "section-continued",
+              id: `${block.id}-cont-${column}`,
+              blockId: block.id,
+              items: taken,
+            },
       );
       used[column] += gap + headerHeight + takenHeight;
       remaining = remaining.slice(taken.length);
@@ -245,6 +290,7 @@ export function flowBlocksIntoColumns(blocks: MenuBlock[]): FlowResult {
         columns[column].push({
           kind: "section-continued",
           id: `${block.id}-overflow`,
+          blockId: block.id,
           items: remaining,
         });
         used[column] += remaining.reduce(

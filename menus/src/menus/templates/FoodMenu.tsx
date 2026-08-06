@@ -1,4 +1,4 @@
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer";
 import { theme } from "./theme";
 import { fonts } from "./fonts";
 import { ElsomWordmark, CellarsMark } from "./logo";
@@ -173,6 +173,19 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   footerTag: { fontFamily: fonts.headingMedium },
+
+  /**
+   * The back-page watermark. Positions are measured from the artboard (node
+   * 22:1137 sits at 233,875 inside the content box) and offset by the page
+   * margin, since absolute coordinates here are relative to the page edge.
+   */
+  watermark: {
+    position: "absolute",
+    left: theme.page.margin + 233,
+    top: theme.page.margin + 875,
+    width: 215,
+    height: 214,
+  },
   /**
    * react-pdf doesn't reliably inherit fontFamily into nested <Text>, so every
    * span in the legend names its face explicitly. Without this the glosses
@@ -274,13 +287,18 @@ function Side({
   content,
   left,
   right,
+  watermark = false,
 }: {
   content: MenuContent;
   left: ColumnFragment[];
   right: ColumnFragment[];
+  watermark?: boolean;
 }) {
   return (
     <Page size={{ width: theme.page.width, height: theme.page.height }} style={styles.page}>
+      {/* First child so the columns paint over it — react-pdf has no z-index. */}
+      {watermark ? <Image src="/brand/watermark-e.png" style={styles.watermark} /> : null}
+
       <Header season={content.season} />
 
       <View style={styles.columns}>
@@ -307,18 +325,17 @@ export function FoodMenu({ content }: { content: MenuContent }) {
   return (
     <Document title={`Elsom Cellars — ${content.season}`}>
       <Side content={content} left={columns[0]} right={columns[1]} />
-      <Side content={content} left={columns[2]} right={columns[3]} />
+      <Side content={content} left={columns[2]} right={columns[3]} watermark />
     </Document>
   );
 }
 
 /**
- * NOT YET IMPLEMENTED: the back page carries a large watercolour "E" watermark
- * behind the content (node 22:1137). It is built from roughly 300 separate
- * vector paths, so inlining it is impractical, and Figma only exports it at
- * 1x (215pt), which is too coarse to print.
+ * The back-page watermark is `public/brand/watermark-e.png`, supplied as a
+ * 738x741 PNG with alpha. At 215pt on the page that's about 247dpi — under the
+ * 300dpi print ideal, but it's a soft watercolour texture rather than type, so
+ * it holds up. Replace it with a larger export if a printer objects.
  *
- * To add it: export that node from Figma as a PNG at 4x or higher, save it to
- * `public/brand/watermark-e.png`, and render it on the back page as an
- * absolutely positioned <Image> behind the columns.
+ * It's a raster because the Figma node is roughly 300 separate vector paths;
+ * inlining those would bloat the template for no visible gain.
  */
