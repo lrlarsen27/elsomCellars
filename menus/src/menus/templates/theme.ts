@@ -1,72 +1,140 @@
 /**
- * Design tokens for the printed menus.
+ * Design tokens, read from the Elsom Menu Figma file.
+ * File: ciJhmsPGUj0Gge5PKpBzhe · page "POR" · node 22:976
  *
- * This file is the single source of truth for type, spacing, and color. It is
- * never exposed through the app UI — changing anything here is a code change,
- * which is exactly the point.
+ * This file is the single source of truth for type, spacing, and color, and is
+ * never exposed through the app UI. Changing anything here is a code change.
  *
- * PLACEHOLDER: these values are a reasonable-looking stand-in, not the real
- * design. When the Figma file is available, replace them with the real specs
- * and register the real font files (see the note below).
- *
- * --- On fonts ---
- * These currently use the three typefaces built into every PDF reader
- * (Helvetica, Times-Roman, Courier), which need no font files and always embed
- * correctly. To use real brand fonts, drop the .ttf files in `public/fonts/`
- * and register them once at module load:
- *
- *   import { Font } from "@react-pdf/renderer";
- *   Font.register({
- *     family: "YourFont",
- *     fonts: [
- *       { src: "/fonts/YourFont-Regular.ttf", fontWeight: "normal" },
- *       { src: "/fonts/YourFont-Bold.ttf", fontWeight: "bold" },
- *     ],
- *   });
- *
- * You'll need the actual font files and a license permitting embedding.
+ * Values marked MEASURED came back from `get_design_context` and are exact.
+ * Values marked APPROX were read off the rendered artboard and should be
+ * confirmed against Figma before this goes to print.
  */
 
 export const theme = {
+  /** Tabloid portrait, 11" x 17" at 72pt/inch. MEASURED. */
   page: {
-    // Points, at 72pt per inch. 396 x 612 is a 5.5" x 8.5" menu card.
-    width: 396,
-    height: 612,
-    padding: 44,
+    width: 792,
+    height: 1224,
+    margin: 36,
+    /** 792 - (36 * 2). MEASURED. */
+    contentWidth: 720,
   },
+
+  /** Two columns of 348 with a 24pt gutter. MEASURED. */
+  column: {
+    width: 348,
+    gutter: 24,
+    count: 2,
+  },
+
   color: {
-    ink: "#1a1a1a",
-    muted: "#6b6b6b",
-    rule: "#d8d4cc",
-    paper: "#faf8f4",
-    accent: "#7a2e2e",
+    /** Section headers, item names, prices, logo. MEASURED. */
+    gold: "#8c734b",
+    /** Descriptions and pairing lines. MEASURED. */
+    body: "#6f6455",
+    /** Rules under section headers and the header divider. APPROX. */
+    rule: "#c9bda6",
+    paper: "#ffffff",
   },
+
+  /**
+   * Both families are open-source (SIL OFL) and free to embed.
+   * They are NOT yet wired up — see the note at the bottom of this file.
+   */
   font: {
-    display: "Times-Roman",
-    displayBold: "Times-Bold",
-    body: "Helvetica",
-    bodyBold: "Helvetica-Bold",
-    mono: "Courier",
+    /** Barlow Condensed Regular — section headers. MEASURED. */
+    headingRegular: "BarlowCondensed",
+    /** Barlow Condensed Medium — item names, dietary tags, prices. MEASURED. */
+    headingMedium: "BarlowCondensedMedium",
+    /** Cormorant Garamond Regular — descriptions. MEASURED. */
+    body: "CormorantGaramond",
+    /** Cormorant Garamond Bold — inline add-on runs. MEASURED from artboard. */
+    bodyBold: "CormorantGaramondBold",
+    /** Cormorant Garamond Italic — the chef's note. APPROX. */
+    bodyItalic: "CormorantGaramondItalic",
   },
+
   size: {
-    title: 26,
-    subtitle: 9,
-    sectionTitle: 12,
-    itemName: 10,
-    itemDescription: 8.5,
-    price: 10,
-    footer: 7.5,
+    /** MEASURED. */
+    sectionHeader: 12,
+    itemName: 16,
+    dietaryTag: 12,
+    price: 16,
+    description: 14,
+    /** APPROX — header season label and footer lines. */
+    seasonLabel: 12,
+    chefNoteHeading: 12,
+    chefNoteBody: 12,
+    footer: 8,
   },
+
+  tracking: {
+    /** Letter spacing in points. MEASURED. */
+    sectionHeader: 2,
+    itemName: 1,
+    dietaryTag: 1,
+    /** APPROX. */
+    seasonLabel: 3,
+  },
+
+  lineHeight: {
+    /** MEASURED — item name and dietary tag sit on a 22pt line. */
+    itemName: 22,
+    /** APPROX — Cormorant at 14pt renders comfortably around 1.25. */
+    description: 1.25,
+  },
+
   space: {
-    afterTitle: 4,
-    afterSubtitle: 26,
+    /** MEASURED. */
+    headerHeight: 50,
+    afterHeaderDivider: 24,
+    sectionHeaderRuleOffset: 22,
+    afterSectionHeader: 10,
+    betweenItems: 10,
+    afterItemName: 2,
+    nameToTagGap: 8,
+    /** MEASURED — the price column is a fixed 34pt, right-aligned. */
+    priceColumnWidth: 34,
+    /** 348 - 34. MEASURED. */
+    itemTextWidth: 314,
+    /** APPROX. */
     betweenSections: 20,
-    afterSectionTitle: 10,
-    betweenItems: 11,
-    afterItemName: 2.5,
   },
-  letterSpacing: {
-    subtitle: 1.6,
-    sectionTitle: 1.8,
+
+  /** The fixed vocabulary used on the artboard. MEASURED. */
+  dietaryTags: {
+    gf: "GF",
+    "gf+": "GF+",
+    v: "V",
+    "v+": "V+",
+    df: "DF",
   },
 } as const;
+
+export type DietaryTag = keyof typeof theme.dietaryTags;
+
+/**
+ * --- Fonts are not wired up yet ---
+ *
+ * The design uses Barlow Condensed and Cormorant Garamond. Both are SIL Open
+ * Font License, so embedding them in a PDF is permitted.
+ *
+ * `@react-pdf/renderer` needs actual font files; it cannot use a webfont CSS
+ * link. The clean way to get them is as versioned npm dependencies rather than
+ * loose binaries:
+ *
+ *   npm install @fontsource/barlow-condensed @fontsource/cormorant-garamond
+ *
+ * then copy the .ttf files into `public/fonts/` and register once at module
+ * load, before any template renders:
+ *
+ *   import { Font } from "@react-pdf/renderer";
+ *   Font.register({ family: "BarlowCondensed", src: "/fonts/barlow-condensed-400.ttf" });
+ *   Font.register({ family: "BarlowCondensedMedium", src: "/fonts/barlow-condensed-500.ttf" });
+ *   Font.register({ family: "CormorantGaramond", src: "/fonts/cormorant-garamond-400.ttf" });
+ *   Font.register({ family: "CormorantGaramondBold", src: "/fonts/cormorant-garamond-700.ttf" });
+ *   Font.register({ family: "CormorantGaramondItalic", src: "/fonts/cormorant-garamond-400-italic.ttf" });
+ *
+ * Until that happens the templates fall back to the built-in PDF faces, which
+ * render but look nothing like the design.
+ */

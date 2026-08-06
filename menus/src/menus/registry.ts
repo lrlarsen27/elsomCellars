@@ -1,8 +1,12 @@
 /**
- * Metadata for the two menus. Kept free of any `@react-pdf/renderer` imports
- * so server components and API routes can read it without pulling the PDF
- * engine into the server bundle. The actual templates live in
- * `src/menus/templates/index.tsx`, which is imported by client code only.
+ * Metadata for each menu. Kept free of any `@react-pdf/renderer` imports so
+ * server components and API routes can read it without pulling the PDF engine
+ * into the server bundle. The templates live in `templates/index.tsx`, which is
+ * imported by client code only.
+ *
+ * Only one menu exists so far. The wine menu hasn't been designed yet — when it
+ * is, add a template, register it in `templates/index.tsx`, add seed copy, and
+ * add a row here. Nothing else changes.
  */
 
 export type MenuMeta = {
@@ -14,13 +18,8 @@ export type MenuMeta = {
 export const MENUS: MenuMeta[] = [
   {
     id: "food",
-    label: "Food Menu",
-    description: "Small plates, boards, and things to share.",
-  },
-  {
-    id: "wine",
-    label: "Wine Menu",
-    description: "Tasting flights, whites, reds, and bottles.",
+    label: "Food & Drink Menu",
+    description: "Tabloid, front and back. Food on the front, beverages and desserts on the back.",
   },
 ];
 

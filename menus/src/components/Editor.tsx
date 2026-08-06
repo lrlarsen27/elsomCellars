@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { MenuForm } from "./MenuForm";
+import { flowBlocksIntoColumns } from "@/menus/templates/layout";
 import type { MenuContent } from "@/lib/schema";
 
 // PDFViewer needs a browser, so it must not render on the server.
@@ -38,6 +39,10 @@ export function Editor({
     () => JSON.stringify(content) !== JSON.stringify(savedContent),
     [content, savedContent],
   );
+
+  // Cheap estimate, same one the template uses to pick column breaks. It warns
+  // early rather than accurately — the preview below is the real answer.
+  const flow = useMemo(() => flowBlocksIntoColumns(content.blocks), [content.blocks]);
 
   useEffect(() => {
     const timer = setTimeout(() => setPreviewContent(content), PREVIEW_DEBOUNCE_MS);
@@ -104,7 +109,7 @@ export function Editor({
       const url = URL.createObjectURL(blob);
       const link = window.document.createElement("a");
       link.href = url;
-      link.download = `${slugify(content.title) || menuId}-menu.pdf`;
+      link.download = `elsom-${menuId}-menu-${slugify(content.season) || "current"}.pdf`;
       link.click();
       URL.revokeObjectURL(url);
     } finally {
@@ -152,6 +157,25 @@ export function Editor({
             borderRight: "1px solid var(--line)",
           }}
         >
+          {flow.overflow ? (
+            <p
+              role="status"
+              style={{
+                margin: "0 0 18px",
+                padding: "10px 12px",
+                border: "1px solid var(--line)",
+                borderLeft: "3px solid var(--danger)",
+                borderRadius: "var(--radius)",
+                fontSize: 13,
+                color: "var(--muted)",
+              }}
+            >
+              This is more than fits on the sheet — the last column runs past the
+              bottom of the page. Shorten something, or move a section up so it
+              lands in an earlier column.
+            </p>
+          ) : null}
+
           <MenuForm content={content} onChange={handleChange} />
         </div>
 

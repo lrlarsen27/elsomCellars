@@ -1,122 +1,310 @@
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import { theme } from "./theme";
-import type { MenuContent } from "@/lib/schema";
+import { fonts } from "./fonts";
+import { ElsomWordmark, CellarsMark } from "./logo";
+import { flowBlocksIntoColumns } from "./layout";
+import { DIETARY_TAG_LABELS } from "@/lib/schema";
+import type { MenuBlock, MenuContent, MenuItem } from "@/lib/schema";
 
 /**
- * The Food Menu layout. Every visual decision lives here; the only thing that
- * varies at runtime is the `content` prop, which is all strings.
+ * The Elsom Cellars menu: one tabloid sheet (11" x 17"), printed front and back.
  *
- * PLACEHOLDER LAYOUT — replace with the real design once the Figma file is
- * readable. The component's contract (take a MenuContent, return a Document)
- * is what the rest of the app depends on, so a redesign is contained to this
- * file and `theme.ts`.
+ * Built from ciJhmsPGUj0Gge5PKpBzhe, page "POR", nodes 22:977 and 22:1065.
+ *
+ * Content is not placed by hand — `layout.ts` decides which of the four column
+ * slots each block lands in, based on how much text there is. See that file for
+ * how the estimate works and where it deviates from the artboard.
  */
+
+/**
+ * The footer legend. Fixed furniture rather than editable copy: it documents
+ * the dietary tag vocabulary, which is itself fixed in the schema. If a tag is
+ * ever added there, add its gloss here too.
+ */
+const LEGEND: Array<[string, string]> = [
+  [DIETARY_TAG_LABELS.gf, "Gluten free"],
+  [DIETARY_TAG_LABELS["gf+"], "Gluten free option"],
+  [DIETARY_TAG_LABELS.v, "Vegan"],
+  [DIETARY_TAG_LABELS["v+"], "Vegan option"],
+  [DIETARY_TAG_LABELS.df, "Dairy free"],
+];
 
 const styles = StyleSheet.create({
   page: {
     width: theme.page.width,
     height: theme.page.height,
-    padding: theme.page.padding,
+    paddingHorizontal: theme.page.margin,
+    paddingVertical: theme.page.margin,
     backgroundColor: theme.color.paper,
-    color: theme.color.ink,
   },
-  title: {
-    fontFamily: theme.font.display,
-    fontSize: theme.size.title,
-    textAlign: "center",
-    marginBottom: theme.space.afterTitle,
+
+  // --- Header ---
+  header: {
+    width: theme.page.contentWidth,
+    height: theme.space.headerHeight,
+    position: "relative",
+    borderBottomWidth: 0.5,
+    borderBottomColor: theme.color.rule,
   },
-  subtitle: {
-    fontFamily: theme.font.body,
-    fontSize: theme.size.subtitle,
-    color: theme.color.muted,
-    textAlign: "center",
-    letterSpacing: theme.letterSpacing.subtitle,
+  // Positions measured from the artboard, relative to the 720 x 50 header.
+  logoElsom: { position: "absolute", left: 0, top: 0 },
+  logoCellars: { position: "absolute", left: 43.06, top: 37.95 },
+  season: {
+    position: "absolute",
+    right: 0,
+    top: 24,
+    fontFamily: fonts.headingRegular,
+    fontSize: theme.size.seasonLabel + 4,
+    color: theme.color.gold,
+    letterSpacing: 5.88,
     textTransform: "uppercase",
-    marginBottom: theme.space.afterSubtitle,
+    textAlign: "right",
   },
-  section: {
-    marginBottom: theme.space.betweenSections,
+
+  // --- Columns ---
+  columns: {
+    flexDirection: "row",
+    gap: theme.column.gutter,
+    marginTop: theme.space.afterHeaderDivider,
+    flexGrow: 1,
+  },
+  column: { width: theme.column.width },
+
+  // --- Section ---
+  section: { marginBottom: theme.space.betweenSections },
+  sectionHeader: {
+    height: theme.space.sectionHeaderRuleOffset,
+    borderBottomWidth: 0.5,
+    borderBottomColor: theme.color.rule,
+    marginBottom: theme.space.afterSectionHeader,
   },
   sectionTitle: {
-    fontFamily: theme.font.displayBold,
-    fontSize: theme.size.sectionTitle,
-    color: theme.color.accent,
-    letterSpacing: theme.letterSpacing.sectionTitle,
+    fontFamily: fonts.headingRegular,
+    fontSize: theme.size.sectionHeader,
+    color: theme.color.gold,
+    letterSpacing: theme.tracking.sectionHeader,
     textTransform: "uppercase",
-    textAlign: "center",
-    marginBottom: theme.space.afterSectionTitle,
   },
-  item: {
-    marginBottom: theme.space.betweenItems,
-  },
-  itemHeader: {
+
+  // --- Item ---
+  item: { flexDirection: "row", marginBottom: theme.space.betweenItems },
+  itemBody: { width: theme.space.itemTextWidth },
+  itemNameRow: {
     flexDirection: "row",
-    alignItems: "flex-end",
+    alignItems: "baseline",
+    gap: theme.space.nameToTagGap,
     marginBottom: theme.space.afterItemName,
   },
   itemName: {
-    fontFamily: theme.font.bodyBold,
+    fontFamily: fonts.headingMedium,
     fontSize: theme.size.itemName,
+    lineHeight: theme.lineHeight.itemName / theme.size.itemName,
+    color: theme.color.gold,
+    letterSpacing: theme.tracking.itemName,
+    textTransform: "uppercase",
   },
-  // A dotted leader between the dish and its price, the way printed menus do it.
-  leader: {
-    flexGrow: 1,
-    borderBottomWidth: 0.5,
-    borderBottomStyle: "dotted",
-    borderBottomColor: theme.color.rule,
-    marginHorizontal: 5,
-    marginBottom: 2,
+  itemTags: {
+    fontFamily: fonts.headingMedium,
+    fontSize: theme.size.dietaryTag,
+    color: theme.color.gold,
+    letterSpacing: theme.tracking.dietaryTag,
+    textTransform: "uppercase",
+  },
+  description: {
+    fontFamily: fonts.body,
+    fontSize: theme.size.description,
+    lineHeight: theme.lineHeight.description,
+    color: theme.color.body,
+  },
+  /** The add-on run continues the description paragraph, set bold. */
+  addOn: { fontFamily: fonts.bodyBold },
+  pairing: {
+    fontFamily: fonts.body,
+    fontSize: theme.size.description,
+    lineHeight: theme.lineHeight.description,
+    color: theme.color.body,
   },
   price: {
-    fontFamily: theme.font.body,
+    width: theme.space.priceColumnWidth,
+    fontFamily: fonts.headingMedium,
     fontSize: theme.size.price,
+    lineHeight: theme.lineHeight.itemName / theme.size.price,
+    color: theme.color.gold,
+    textAlign: "right",
   },
-  itemDescription: {
-    fontFamily: theme.font.body,
-    fontSize: theme.size.itemDescription,
-    color: theme.color.muted,
-  },
-  footer: {
-    marginTop: "auto",
-    paddingTop: 14,
+
+  // --- Chef note ---
+  note: { marginBottom: theme.space.betweenSections },
+  noteRule: {
     borderTopWidth: 0.5,
     borderTopColor: theme.color.rule,
-    fontFamily: theme.font.body,
-    fontSize: theme.size.footer,
-    color: theme.color.muted,
+    marginBottom: theme.space.afterSectionHeader,
+  },
+  noteHeading: {
+    fontFamily: fonts.headingMedium,
+    fontSize: theme.size.chefNoteHeading,
+    color: theme.color.gold,
+    letterSpacing: theme.tracking.itemName,
+    textTransform: "uppercase",
+    marginBottom: theme.space.afterItemName,
+  },
+  noteBody: {
+    fontFamily: fonts.bodyItalic,
+    fontSize: theme.size.chefNoteBody,
+    lineHeight: 1.25,
+    color: theme.color.body,
+  },
+
+  // --- Footer ---
+  footer: {
+    width: theme.page.contentWidth,
+    alignItems: "center",
+    gap: 4,
+    marginTop: 14,
+  },
+  footerLine: {
+    fontFamily: fonts.body,
+    fontSize: theme.size.footer + 2,
+    color: theme.color.body,
     textAlign: "center",
   },
+  footerTag: { fontFamily: fonts.headingMedium },
 });
 
-export function FoodMenu({ content }: { content: MenuContent }) {
+function Header({ season }: { season: string }) {
   return (
-    <Document title={content.title || "Menu"}>
-      <Page size={{ width: theme.page.width, height: theme.page.height }} style={styles.page}>
-        {content.title ? <Text style={styles.title}>{content.title}</Text> : null}
-        {content.subtitle ? <Text style={styles.subtitle}>{content.subtitle}</Text> : null}
+    <View style={styles.header} fixed>
+      <View style={styles.logoElsom}>
+        <ElsomWordmark width={78.7908} height={39.782} />
+      </View>
+      <View style={styles.logoCellars}>
+        <CellarsMark width={35.0272} height={4.05181} />
+      </View>
+      <Text style={styles.season}>{season}</Text>
+    </View>
+  );
+}
 
-        {content.sections.map((section) => (
-          <View key={section.id} style={styles.section} wrap={false}>
-            {section.title ? <Text style={styles.sectionTitle}>{section.title}</Text> : null}
-
-            {section.items.map((item) => (
-              <View key={item.id} style={styles.item} wrap={false}>
-                <View style={styles.itemHeader}>
-                  <Text style={styles.itemName}>{item.name}</Text>
-                  <View style={styles.leader} />
-                  <Text style={styles.price}>{item.price}</Text>
-                </View>
-                {item.description ? (
-                  <Text style={styles.itemDescription}>{item.description}</Text>
-                ) : null}
-              </View>
-            ))}
-          </View>
+function Footer({ disclaimer, serviceCharge }: { disclaimer: string; serviceCharge: string }) {
+  return (
+    <View style={styles.footer} fixed>
+      <Text style={styles.footerLine}>
+        {LEGEND.map(([abbreviation, gloss], index) => (
+          <Text key={abbreviation}>
+            <Text style={styles.footerTag}>{abbreviation}</Text>
+            <Text>{` - ${gloss}`}</Text>
+            {index < LEGEND.length - 1 ? <Text>, </Text> : null}
+          </Text>
         ))}
+      </Text>
+      <Text style={styles.footerLine}>{disclaimer}</Text>
+      <Text style={styles.footerLine}>{serviceCharge}</Text>
+    </View>
+  );
+}
 
-        {content.footer ? <Text style={styles.footer}>{content.footer}</Text> : null}
-      </Page>
+function Item({ item }: { item: MenuItem }) {
+  const hasBody = Boolean(item.description || item.addOn);
+
+  return (
+    <View style={styles.item} wrap={false}>
+      <View style={styles.itemBody}>
+        <View style={styles.itemNameRow}>
+          <Text style={styles.itemName}>{item.name}</Text>
+          {item.tags.length > 0 ? (
+            <Text style={styles.itemTags}>
+              {item.tags.map((tag) => DIETARY_TAG_LABELS[tag]).join(" · ")}
+            </Text>
+          ) : null}
+        </View>
+
+        {hasBody ? (
+          <Text style={styles.description}>
+            {item.description}
+            {item.addOn ? <Text style={styles.addOn}>{` ${item.addOn}`}</Text> : null}
+          </Text>
+        ) : null}
+
+        {item.pairing ? <Text style={styles.pairing}>{item.pairing}</Text> : null}
+      </View>
+
+      {item.price ? <Text style={styles.price}>{item.price}</Text> : null}
+    </View>
+  );
+}
+
+function Block({ block }: { block: MenuBlock }) {
+  if (block.kind === "note") {
+    return (
+      <View style={styles.note} wrap={false}>
+        <View style={styles.noteRule} />
+        <Text style={styles.noteHeading}>{block.heading}</Text>
+        <Text style={styles.noteBody}>{block.body}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.section}>
+      <View style={styles.sectionHeader} wrap={false}>
+        <Text style={styles.sectionTitle}>{block.title}</Text>
+      </View>
+      {block.items.map((item) => (
+        <Item key={item.id} item={item} />
+      ))}
+    </View>
+  );
+}
+
+function Side({
+  content,
+  left,
+  right,
+}: {
+  content: MenuContent;
+  left: MenuBlock[];
+  right: MenuBlock[];
+}) {
+  return (
+    <Page size={{ width: theme.page.width, height: theme.page.height }} style={styles.page}>
+      <Header season={content.season} />
+
+      <View style={styles.columns}>
+        <View style={styles.column}>
+          {left.map((block) => (
+            <Block key={block.id} block={block} />
+          ))}
+        </View>
+        <View style={styles.column}>
+          {right.map((block) => (
+            <Block key={block.id} block={block} />
+          ))}
+        </View>
+      </View>
+
+      <Footer disclaimer={content.disclaimer} serviceCharge={content.serviceCharge} />
+    </Page>
+  );
+}
+
+export function FoodMenu({ content }: { content: MenuContent }) {
+  const { columns } = flowBlocksIntoColumns(content.blocks);
+
+  return (
+    <Document title={`Elsom Cellars — ${content.season}`}>
+      <Side content={content} left={columns[0]} right={columns[1]} />
+      <Side content={content} left={columns[2]} right={columns[3]} />
     </Document>
   );
 }
+
+/**
+ * NOT YET IMPLEMENTED: the back page carries a large watercolour "E" watermark
+ * behind the content (node 22:1137). It is built from roughly 300 separate
+ * vector paths, so inlining it is impractical, and Figma only exports it at
+ * 1x (215pt), which is too coarse to print.
+ *
+ * To add it: export that node from Figma as a PNG at 4x or higher, save it to
+ * `public/brand/watermark-e.png`, and render it on the back page as an
+ * absolutely positioned <Image> behind the columns.
+ */

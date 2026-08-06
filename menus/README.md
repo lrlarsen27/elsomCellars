@@ -1,23 +1,37 @@
 # Menus
 
-Sign in with a shared passcode, edit the text of the food and wine menus,
-download a print-ready PDF.
+Sign in with a shared passcode, edit the menu text, download a print-ready PDF.
 
 Part of the [Elsom Cellars](../README.md) repo.
+
+> **Nothing here has been run yet.** Node isn't installed on the machine this
+> was written on, so there has been no `npm install`, no typecheck, and no
+> render. Treat the first `npm run dev` as the real test.
 
 ## The one idea
 
 A menu is **a locked template plus editable content**.
 
 - The **template** is code: `src/menus/templates/`. Type, spacing, color, page size.
-- The **content** is JSON: strings only. That's what the app edits.
+- The **content** is JSON: strings and tag choices. That's what the app edits.
 
-There is no font picker or alignment toggle in the UI — not because they're
+There is no font picker or column chooser in the UI — not because they're
 disabled, but because `MenuContent` in `src/lib/schema.ts` has nowhere to put
 those values. Formatting can only change by editing the template in the repo.
 
+Column placement isn't stored either. It's computed at render time from how much
+content there is, so nobody chooses it and nobody can break it.
+
 The on-screen preview is rendered by the same code as the download, so the
 preview *is* the PDF. They can't drift apart.
+
+## The design
+
+One tabloid sheet, 11" × 17", printed front and back. Built from the Figma file
+`ciJhmsPGUj0Gge5PKpBzhe`, page "POR", nodes `22:977` (front) and `22:1065` (back).
+
+Type is Barlow Condensed and Cormorant Garamond, gold `#8c734b` on body
+`#6f6455`, two 348pt columns with a 24pt gutter.
 
 ## Setup
 
@@ -45,30 +59,39 @@ Open http://localhost:3000.
 
 | Path | What it does |
 | --- | --- |
-| `src/menus/templates/theme.ts` | Type, spacing, color, page size. **Placeholder values.** |
-| `src/menus/templates/FoodMenu.tsx` | Food menu layout. **Placeholder.** |
-| `src/menus/templates/WineMenu.tsx` | Wine menu layout. **Placeholder.** |
-| `src/menus/registry.ts` | The list of menus and their labels. |
+| `src/menus/templates/theme.ts` | Type, spacing, color, page size, read from Figma. |
+| `src/menus/templates/FoodMenu.tsx` | The two-sided tabloid layout. |
+| `src/menus/templates/layout.ts` | Decides which column each block lands in. |
+| `src/menus/templates/logo.tsx` | Generated vector logo — don't hand-edit. |
+| `src/menus/templates/fonts.ts` | Font registration and the fallback switch. |
+| `src/menus/templates/assets/` | The Figma SVG exports the logo was generated from. |
 | `src/lib/schema.ts` | What's editable. Adding a field here makes it editable. |
-| `src/lib/seed.ts` | Starting copy. **Placeholder — not real menu items.** |
+| `src/lib/seed.ts` | Starting copy, transcribed from the artboards. |
 | `src/lib/store.ts` | Persistence. Swap this one file to change hosting. |
-| `src/lib/auth.ts` | Passcode check and signed cookie. |
 | `src/components/MenuForm.tsx` | The editing form. |
 
-## Swapping in the real design
+## Three things still outstanding
 
-1. Get the real specs — page size in points (72pt = 1 inch), fonts, sizes,
-   weights, spacing, colors.
-2. Put them in `theme.ts`.
-3. Rework the two template components to match the layout.
-4. For real fonts: drop `.ttf` files in `public/fonts/` and register them —
-   see the comment at the top of `theme.ts`. You need font files licensed for
-   embedding; the built-in Helvetica/Times need no files and always work.
+**1. Fonts aren't wired up.** The design uses Barlow Condensed and Cormorant
+Garamond — both SIL Open Font License, so embedding is permitted. Until the
+files are in `public/fonts/`, `fonts.ts` falls back to the built-in PDF faces,
+which render but look nothing like the design. Instructions and the
+`FONTS_INSTALLED` switch are at the top of that file.
 
-Only these files change. The editor, auth, storage, and export don't care what
-the menus look like.
+**2. The back-page watermark is missing.** The large watercolour "E" (node
+`22:1137`) is roughly 300 vector paths, and Figma only exports it at 1×, which
+is too coarse to print. Export it as a PNG at 4× or larger, save it to
+`public/brand/watermark-e.png`, and render it behind the back page columns.
 
-## Adding a third menu
+**3. The front page composition differs from the artboard.** On the design, the
+Sandwiches section deliberately splits across the column break — three of its
+items sit at the top of the right column under no heading. Sections are kept
+whole here, so that no longer happens. This was the deliberate tradeoff for a
+layout that can never break; the alternative is in `layout.ts`.
+
+## Adding the wine menu
+
+It hasn't been designed yet. When it is:
 
 1. Write the template in `src/menus/templates/`.
 2. Add it to the map in `src/menus/templates/index.tsx`.
@@ -93,13 +116,23 @@ has no build of its own.
 
 Chosen deliberately, worth knowing before they surprise you:
 
+- **Column breaks are estimated, not measured.** react-pdf can't measure text
+  before laying it out, so `layout.ts` estimates heights from character counts.
+  It picks sensible breaks but isn't exact; a nearly-full column may render
+  slightly over or under. The preview is the truth.
 - **One shared passcode, so no audit trail.** The app can't tell you who
-  changed a price. Real accounts would mean a user database.
+  changed a price.
 - **Last write wins.** Two people saving at the same moment: one silently
-  overwrites the other. Fine for one tasting room; fix it with a real database
-  and a version check if the team grows.
-- **Content can overflow the page.** Add enough items and they run past the
-  bottom of the fixed-size card. The preview shows this happening, but nothing
-  stops you from saving it.
+  overwrites the other. Fix it with a real database and a version check if the
+  team grows.
+- **Overflow is visible, not prevented.** Past four columns' worth of content,
+  the editor warns and the PDF spills onto extra pages rather than dropping
+  anything silently.
 - **Cookie auth is a gate, not a vault.** Anyone with the passcode has full
-  access, and the passcode is only as good as how it's shared.
+  access.
+
+## Content notes
+
+The seed copy is transcribed verbatim from the artboards, including several
+apparent mistakes left in place on purpose — fixing menu copy is what this app
+is for. See the comment at the top of `src/lib/seed.ts`.
