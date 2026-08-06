@@ -39,7 +39,14 @@ async function importKey(secret: string): Promise<CryptoKey> {
 }
 
 function toBase64Url(bytes: ArrayBuffer): string {
-  const binary = String.fromCharCode(...new Uint8Array(bytes));
+  // Built with a loop rather than String.fromCharCode(...view): spreading a
+  // typed array needs downlevelIteration, and blows the call stack on large
+  // inputs. This is neither fussy nor fragile.
+  const view = new Uint8Array(bytes);
+  let binary = "";
+  for (let i = 0; i < view.length; i += 1) {
+    binary += String.fromCharCode(view[i]);
+  }
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 

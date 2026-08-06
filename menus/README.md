@@ -4,9 +4,10 @@ Sign in with a shared passcode, edit the menu text, download a print-ready PDF.
 
 Part of the [Elsom Cellars](../README.md) repo.
 
-> **Nothing here has been run yet.** Node isn't installed on the machine this
-> was written on, so there has been no `npm install`, no typecheck, and no
-> render. Treat the first `npm run dev` as the real test.
+> **Status:** runs locally. Typecheck is clean, the dev server boots, login
+> works, and the PDF renders in the browser and server-side. The column layout
+> was verified against the artboard column by column. Fonts are still the
+> fallback faces — see below.
 
 ## The one idea
 
@@ -53,7 +54,7 @@ Then:
 npm run dev
 ```
 
-Open http://localhost:3000.
+Open http://localhost:3000 and sign in with whatever you set `APP_PASSCODE` to.
 
 ## Where things live
 
@@ -83,11 +84,21 @@ which render but look nothing like the design. Instructions and the
 is too coarse to print. Export it as a PNG at 4× or larger, save it to
 `public/brand/watermark-e.png`, and render it behind the back page columns.
 
-**3. The front page composition differs from the artboard.** On the design, the
-Sandwiches section deliberately splits across the column break — three of its
-items sit at the top of the right column under no heading. Sections are kept
-whole here, so that no longer happens. This was the deliberate tradeoff for a
-layout that can never break; the alternative is in `layout.ts`.
+**3. Nothing — the layout now reproduces the artboard.** Verified column by
+column against the Figma with the real menu content:
+
+| Column | Contents |
+| --- | --- |
+| front left | Appetizers, Shareables, Salads, Sandwiches (2 items) |
+| front right | …Sandwiches continued (3), Plates (5), Note from Chef Dom |
+| back left | Heirloom Beverages, Coffee & Tea |
+| back right | Desserts (5) |
+
+Getting there took two corrections worth knowing about, both recorded in
+`layout.ts`: sections must be allowed to split across a column break (the
+artboard's Sandwiches split is load-bearing — forbidding it pushed Plates onto
+the back page), and a section is moved whole to the next column rather than
+stranding fewer than two items in a headingless continuation.
 
 ## Adding the wine menu
 
@@ -118,8 +129,10 @@ Chosen deliberately, worth knowing before they surprise you:
 
 - **Column breaks are estimated, not measured.** react-pdf can't measure text
   before laying it out, so `layout.ts` estimates heights from character counts.
-  It picks sensible breaks but isn't exact; a nearly-full column may render
-  slightly over or under. The preview is the truth.
+  It reproduces the artboard exactly on the current content, but it isn't
+  exact in general; a nearly-full column may render slightly over or under.
+  The preview is the truth. If breaks start landing wrong after a lot of edits,
+  `DESCRIPTION_CHARS_PER_LINE` is the dial to turn.
 - **One shared passcode, so no audit trail.** The app can't tell you who
   changed a price.
 - **Last write wins.** Two people saving at the same moment: one silently

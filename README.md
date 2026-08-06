@@ -8,7 +8,7 @@ projects can use whatever they need without affecting each other.
 
 | Directory | What it is | Status |
 | --- | --- | --- |
-| [`menus/`](menus) | Sign in, edit menu text, export a print-ready PDF | Built from the Figma design, not yet run |
+| [`menus/`](menus) | Sign in, edit menu text, export a print-ready PDF | Runs locally; fonts still pending |
 
 ## Adding a project
 

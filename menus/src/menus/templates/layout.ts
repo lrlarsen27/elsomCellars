@@ -1,34 +1,33 @@
 import { theme } from "./theme";
-import type { MenuBlock } from "@/lib/schema";
+import type { MenuBlock, MenuItem } from "@/lib/schema";
 
 /**
- * Decides which column each block lands in.
+ * Decides what goes in each column.
  *
  * The printed piece is a single tabloid sheet, so there are exactly four
  * column slots and no way to add a fifth:
  *
  *   0 = front left   1 = front right   2 = back left   3 = back right
  *
- * Blocks fill those slots in order and are never split, so the only control
- * anyone has over placement is the order of the blocks themselves. Nobody
- * picks a column, which is why a user can't put the document in a broken state
- * by editing text.
+ * Content fills them in order. Individual items are never split, but a section
+ * may continue into the next column — the continuation carries no heading,
+ * exactly as the artboard does with Sandwiches on the front page.
+ *
+ * --- Why sections are allowed to split ---
+ *
+ * They weren't, at first. Keeping every section whole sounds tidier, but with
+ * the real menu it put Plates and the chef's note on the back page and left the
+ * front 700pt empty, because Sandwiches (562pt) and Plates (597pt) can't share
+ * a 1030pt column. The artboard splits Sandwiches for exactly this reason. So
+ * the split is load-bearing, and keeping sections whole produced the wrong
+ * printed piece.
  *
  * --- The honest caveat ---
  *
- * react-pdf has no way to measure text before laying it out, so heights here
- * are ESTIMATED from character counts. The estimate is good enough to pick
- * sensible column breaks, but it is not exact. A column that lands within a
- * few percent of full may render slightly over or under. The preview shows the
- * true result — trust it over this file.
- *
- * --- Deviation from the Figma ---
- *
- * On the artboard the Sandwiches section deliberately splits across the front
- * page's column break: three of its items sit at the top of the right column
- * under no heading. Keeping sections whole means that no longer happens, so
- * the front page composition here differs from the design. That was the chosen
- * tradeoff: sections stay whole, and the layout can never break.
+ * react-pdf can't measure text before laying it out, so heights here are
+ * ESTIMATED from character counts. Good enough to pick sensible breaks, not
+ * exact. A column that lands within a few percent of full may render slightly
+ * over or under. The preview shows the truth — trust it over this file.
  */
 
 /** Column slots available on one double-sided tabloid sheet. */
@@ -44,7 +43,7 @@ export const COLUMN_HEIGHT = 1030;
  * How many characters of description fit on one line at 14pt Cormorant
  * Garamond in a 314pt column. Measured off the artboard: "Organic
  * kettle-popped in coconut oil and tossed with a" is 54 characters and fills
- * exactly one line. Retune this if the column width or body size changes.
+ * exactly one line. Retune if the column width or body size changes.
  */
 const DESCRIPTION_CHARS_PER_LINE = 54;
 
@@ -54,27 +53,56 @@ const NOTE_CHARS_PER_LINE = 72;
 const DESCRIPTION_LINE_HEIGHT = 17.5;
 const NOTE_LINE_HEIGHT = 15;
 
+const SECTION_HEADER_HEIGHT =
+  theme.space.sectionHeaderRuleOffset + theme.space.afterSectionHeader;
+
+/**
+ * Never strand fewer than this many items on either side of a column break.
+ *
+ * A continuation carries no heading, so a single item alone at the top of a
+ * column reads as orphaned — it looks like a mistake rather than a runover.
+ * When a split would leave a widow, the whole section moves to the next column
+ * instead, provided it fits there. This is what puts all five desserts in the
+ * back-right column, matching the artboard.
+ */
+const MIN_FRAGMENT_ITEMS = 2;
+
+/**
+ * What lands in a column. A section that spans a column break appears as one
+ * `section` fragment followed by a `section-continued` fragment, which renders
+ * without repeating the heading.
+ */
+export type ColumnFragment =
+  | { kind: "section"; id: string; title: string; items: MenuItem[] }
+  | { kind: "section-continued"; id: string; items: MenuItem[] }
+  | { kind: "note"; id: string; heading: string; body: string };
+
 /** Counts wrapped lines, honouring any explicit newlines in the text. */
 function countLines(text: string, charsPerLine: number): number {
   if (!text) return 0;
 
   return text
     .split("\n")
-    .reduce((total, paragraph) => total + Math.max(1, Math.ceil(paragraph.length / charsPerLine)), 0);
+    .reduce(
+      (total, paragraph) => total + Math.max(1, Math.ceil(paragraph.length / charsPerLine)),
+      0,
+    );
 }
 
-function estimateItemHeight(item: {
-  description: string;
-  addOn: string;
-  pairing: string;
-}): number {
-  // The name and its dietary tags share one 22pt line.
+/**
+ * Content height only — no trailing margin.
+ *
+ * Gaps are added *between* elements by the caller rather than baked into each
+ * one. That distinction matters: a margin below the last item in a column
+ * occupies no visible space, and counting it made the estimate run about 6%
+ * high — enough to push the chef's note off the front page when it fits.
+ */
+export function estimateItemHeight(item: MenuItem): number {
   let height = theme.lineHeight.itemName + theme.space.afterItemName;
 
-  // The add-on run continues the description paragraph rather than starting a
-  // new one, so the two are measured together.
-  const descriptionText = [item.description, item.addOn].filter(Boolean).join(" ");
-  height += countLines(descriptionText, DESCRIPTION_CHARS_PER_LINE) * DESCRIPTION_LINE_HEIGHT;
+  // The add-on run continues the description paragraph, so they measure together.
+  const body = [item.description, item.addOn].filter(Boolean).join(" ");
+  height += countLines(body, DESCRIPTION_CHARS_PER_LINE) * DESCRIPTION_LINE_HEIGHT;
 
   if (item.pairing) {
     height += countLines(item.pairing, DESCRIPTION_CHARS_PER_LINE) * DESCRIPTION_LINE_HEIGHT;
@@ -83,66 +111,151 @@ function estimateItemHeight(item: {
   return height;
 }
 
-export function estimateBlockHeight(block: MenuBlock): number {
-  if (block.kind === "note") {
-    return (
-      theme.space.sectionHeaderRuleOffset +
-      theme.size.chefNoteHeading +
-      theme.space.afterItemName +
-      countLines(block.body, NOTE_CHARS_PER_LINE) * NOTE_LINE_HEIGHT +
-      theme.space.betweenSections
-    );
-  }
+function estimateNoteHeight(body: string): number {
+  return (
+    theme.space.sectionHeaderRuleOffset +
+    theme.size.chefNoteHeading +
+    theme.space.afterItemName +
+    countLines(body, NOTE_CHARS_PER_LINE) * NOTE_LINE_HEIGHT
+  );
+}
 
-  const header = theme.space.sectionHeaderRuleOffset + theme.space.afterSectionHeader;
+/** Total height of a whole block, including the gaps between its items. */
+export function estimateBlockHeight(block: MenuBlock): number {
+  if (block.kind === "note") return estimateNoteHeight(block.body);
+
   const items = block.items.reduce((total, item) => total + estimateItemHeight(item), 0);
   const gaps = Math.max(0, block.items.length - 1) * theme.space.betweenItems;
 
-  return header + items + gaps + theme.space.betweenSections;
+  return SECTION_HEADER_HEIGHT + items + gaps;
 }
 
 export type FlowResult = {
   /** Always length COLUMN_SLOTS. Empty arrays for unused columns. */
-  columns: MenuBlock[][];
+  columns: ColumnFragment[][];
   /**
-   * True when content didn't fit in four columns. The overflowing blocks are
-   * still placed in the last column, where they will visibly run off the page
-   * rather than disappear — a silent drop would be worse.
+   * True when content ran past the last column. Overflowing content is still
+   * placed, where it visibly runs off the page — a silent drop would be worse.
    */
   overflow: boolean;
-  /** Blocks that did not fit, for messaging in the editor. */
-  overflowingBlocks: MenuBlock[];
 };
 
 export function flowBlocksIntoColumns(blocks: MenuBlock[]): FlowResult {
-  const columns: MenuBlock[][] = Array.from({ length: COLUMN_SLOTS }, () => []);
-  const heights = new Array<number>(COLUMN_SLOTS).fill(0);
-  const overflowingBlocks: MenuBlock[] = [];
+  const columns: ColumnFragment[][] = Array.from({ length: COLUMN_SLOTS }, () => []);
+  const used = new Array<number>(COLUMN_SLOTS).fill(0);
 
-  let current = 0;
+  let column = 0;
+  let overflow = false;
 
-  for (const block of blocks) {
-    const height = estimateBlockHeight(block);
-
-    // Move to the next column when this block won't fit — unless the column is
-    // still empty, in which case the block is taller than a whole column and
-    // moving it along would just loop.
-    while (current < COLUMN_SLOTS - 1 && heights[current] > 0 && heights[current] + height > COLUMN_HEIGHT) {
-      current += 1;
+  /** Moves to the next column. On the last one, records overflow and stays. */
+  function advance(): boolean {
+    if (column < COLUMN_SLOTS - 1) {
+      column += 1;
+      return true;
     }
-
-    const doesNotFit = heights[current] + height > COLUMN_HEIGHT;
-    if (doesNotFit && current === COLUMN_SLOTS - 1) {
-      overflowingBlocks.push(block);
-    }
-
-    columns[current].push(block);
-    heights[current] += height;
+    overflow = true;
+    return false;
   }
 
-  return {
-    columns,
-    overflow: overflowingBlocks.length > 0,
-    overflowingBlocks,
-  };
+  /** Space before the next block in this column — nothing if it's still empty. */
+  function leadingGap(): number {
+    return used[column] > 0 ? theme.space.betweenSections : 0;
+  }
+
+  for (const block of blocks) {
+    if (block.kind === "note") {
+      const height = estimateNoteHeight(block.body);
+      if (used[column] > 0 && used[column] + leadingGap() + height > COLUMN_HEIGHT) advance();
+
+      columns[column].push({ kind: "note", id: block.id, heading: block.heading, body: block.body });
+      used[column] += leadingGap() + height;
+      continue;
+    }
+
+    let remaining = [...block.items];
+    let isFirstFragment = true;
+
+    while (remaining.length > 0) {
+      const gap = leadingGap();
+      const headerHeight = isFirstFragment ? SECTION_HEADER_HEIGHT : 0;
+      const available = COLUMN_HEIGHT - used[column] - gap - headerHeight;
+
+      // Take as many whole items as fit in what's left of this column, counting
+      // the gap between consecutive items but not after the last one.
+      const taken: MenuItem[] = [];
+      let takenHeight = 0;
+      for (const item of remaining) {
+        const addition =
+          (taken.length === 0 ? 0 : theme.space.betweenItems) + estimateItemHeight(item);
+        if (takenHeight + addition > available) break;
+        taken.push(item);
+        takenHeight += addition;
+      }
+
+      // Would this split strand a widow? If the section would fit whole in a
+      // fresh column, start it there instead. `isFirstFragment` stays true and
+      // the new column is empty, so the retry takes everything and can't loop.
+      const wouldSplit = taken.length > 0 && taken.length < remaining.length;
+      const strands =
+        wouldSplit &&
+        (taken.length < MIN_FRAGMENT_ITEMS ||
+          remaining.length - taken.length < MIN_FRAGMENT_ITEMS);
+
+      if (
+        strands &&
+        isFirstFragment &&
+        used[column] > 0 &&
+        estimateBlockHeight(block) <= COLUMN_HEIGHT &&
+        advance()
+      ) {
+        continue;
+      }
+
+      if (taken.length === 0) {
+        // Nothing fits here. Try a fresh column — unless this column is already
+        // empty, in which case a single item is taller than a whole column and
+        // moving on would loop forever.
+        if (used[column] > 0 && advance()) continue;
+
+        const forced = remaining.shift();
+        if (!forced) break;
+        overflow = true;
+        columns[column].push(
+          isFirstFragment
+            ? { kind: "section", id: block.id, title: block.title, items: [forced] }
+            : { kind: "section-continued", id: `${block.id}-cont`, items: [forced] },
+        );
+        used[column] += gap + headerHeight + estimateItemHeight(forced);
+        isFirstFragment = false;
+        continue;
+      }
+
+      columns[column].push(
+        isFirstFragment
+          ? { kind: "section", id: block.id, title: block.title, items: taken }
+          : { kind: "section-continued", id: `${block.id}-cont-${column}`, items: taken },
+      );
+      used[column] += gap + headerHeight + takenHeight;
+      remaining = remaining.slice(taken.length);
+      isFirstFragment = false;
+
+      // More to place means this column is full; the rest continues in the next.
+      if (remaining.length > 0 && !advance()) {
+        // Out of columns. Put the remainder here so it's visible, not dropped.
+        columns[column].push({
+          kind: "section-continued",
+          id: `${block.id}-overflow`,
+          items: remaining,
+        });
+        used[column] += remaining.reduce(
+          (sum, item, index) =>
+            sum + estimateItemHeight(item) + (index === 0 ? 0 : theme.space.betweenItems),
+          0,
+        );
+        remaining = [];
+      }
+    }
+  }
+
+  return { columns, overflow };
 }

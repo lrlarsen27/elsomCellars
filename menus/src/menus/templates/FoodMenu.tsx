@@ -3,8 +3,9 @@ import { theme } from "./theme";
 import { fonts } from "./fonts";
 import { ElsomWordmark, CellarsMark } from "./logo";
 import { flowBlocksIntoColumns } from "./layout";
+import type { ColumnFragment } from "./layout";
 import { DIETARY_TAG_LABELS } from "@/lib/schema";
-import type { MenuBlock, MenuContent, MenuItem } from "@/lib/schema";
+import type { MenuContent, MenuItem } from "@/lib/schema";
 
 /**
  * The Elsom Cellars menu: one tabloid sheet (11" x 17"), printed front and back.
@@ -233,23 +234,28 @@ function Item({ item }: { item: MenuItem }) {
   );
 }
 
-function Block({ block }: { block: MenuBlock }) {
-  if (block.kind === "note") {
+function ColumnBlock({ fragment }: { fragment: ColumnFragment }) {
+  if (fragment.kind === "note") {
     return (
       <View style={styles.note} wrap={false}>
         <View style={styles.noteRule} />
-        <Text style={styles.noteHeading}>{block.heading}</Text>
-        <Text style={styles.noteBody}>{block.body}</Text>
+        <Text style={styles.noteHeading}>{fragment.heading}</Text>
+        <Text style={styles.noteBody}>{fragment.body}</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.section}>
-      <View style={styles.sectionHeader} wrap={false}>
-        <Text style={styles.sectionTitle}>{block.title}</Text>
-      </View>
-      {block.items.map((item) => (
+      {/* A continuation carries no heading — it just picks up where the
+          previous column left off, the way the artboard does. */}
+      {fragment.kind === "section" ? (
+        <View style={styles.sectionHeader} wrap={false}>
+          <Text style={styles.sectionTitle}>{fragment.title}</Text>
+        </View>
+      ) : null}
+
+      {fragment.items.map((item) => (
         <Item key={item.id} item={item} />
       ))}
     </View>
@@ -262,8 +268,8 @@ function Side({
   right,
 }: {
   content: MenuContent;
-  left: MenuBlock[];
-  right: MenuBlock[];
+  left: ColumnFragment[];
+  right: ColumnFragment[];
 }) {
   return (
     <Page size={{ width: theme.page.width, height: theme.page.height }} style={styles.page}>
@@ -271,13 +277,13 @@ function Side({
 
       <View style={styles.columns}>
         <View style={styles.column}>
-          {left.map((block) => (
-            <Block key={block.id} block={block} />
+          {left.map((fragment) => (
+            <ColumnBlock key={fragment.id} fragment={fragment} />
           ))}
         </View>
         <View style={styles.column}>
-          {right.map((block) => (
-            <Block key={block.id} block={block} />
+          {right.map((fragment) => (
+            <ColumnBlock key={fragment.id} fragment={fragment} />
           ))}
         </View>
       </View>
