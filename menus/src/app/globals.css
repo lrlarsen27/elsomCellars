@@ -16,12 +16,12 @@
 
 /*
  * Both families are already in `public/fonts/` for the PDF, so the web UI costs
- * no new files. `public/fonts/` is excluded from the auth matcher in
- * `src/middleware.ts`, which is why these load on the login screen too.
+ * no new files. Nothing gates these paths — the app has no auth — so they load
+ * on every page.
  *
  * Barlow Condensed carries the whole Material type scale except display.
- * Cormorant is 651KB, so it's used only for the two display headings — the
- * login title and the menu index — and never for anything set at body size.
+ * Cormorant is 651KB, so it's used only for the display heading on the menu
+ * index, and never for anything set at body size.
  */
 
 @font-face {

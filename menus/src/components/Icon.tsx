@@ -38,12 +38,6 @@ export const ArrowBackIcon = (props: IconProps) =>
 export const ChevronRightIcon = (props: IconProps) =>
   svg("M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6-6-6z", props);
 
-export const LogoutIcon = (props: IconProps) =>
-  svg(
-    "M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5-5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z",
-    props,
-  );
-
 export const LockIcon = (props: IconProps) =>
   svg(
     "M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z",

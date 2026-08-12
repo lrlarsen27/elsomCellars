@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { MENUS } from "@/menus/registry";
-import { SignOutButton } from "@/components/SignOutButton";
 import { ChevronRightIcon, MenuBookIcon } from "@/components/Icon";
 import { ElsomLogo } from "@/components/Logo";
 
@@ -13,9 +12,6 @@ export default function HomePage() {
         <h1 style={{ margin: "0 0 0 16px", display: "flex", color: "var(--elsom-gold)" }}>
           <ElsomLogo height={36} />
         </h1>
-        <div style={{ marginLeft: "auto" }}>
-          <SignOutButton />
-        </div>
       </header>
 
       <main style={{ maxWidth: 680, margin: "0 auto", padding: "40px 24px 64px" }}>
