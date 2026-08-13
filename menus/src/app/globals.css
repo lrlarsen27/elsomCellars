@@ -819,36 +819,33 @@ a {
   background: var(--md-sys-color-outline-variant);
 }
 
-/* -------------------------------------------------------- editor panes --- */
+/* ------------------------------------------------------------- loading --- */
 
 /*
- * Form and preview side by side. Media queries can't live in inline styles,
- * which is the only reason this isn't in the component.
- *
- * Below 1100px the preview drops under the form and stops sticking — a sheet
- * scaled into half of a narrow window is too small to read anything in, and a
- * sticky panel would eat the space the form needs.
+ * Shown while the spreadsheet is being read. Every page load crosses a network
+ * and a redirect, so this is the state the winery sees most often — leaving it
+ * unstyled would make "still reading" indistinguishable from "broken".
  */
-.editor-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 24px;
-  align-items: start;
+.md-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 96px 0;
 }
 
-@media (min-width: 1100px) {
-  .editor-layout {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 460px);
-  }
+.md-progress {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--md-sys-color-surface-variant);
+  border-top-color: var(--md-sys-color-primary);
+  border-radius: 50%;
+  animation: md-progress-spin 900ms linear infinite;
+}
 
-  .editor-preview {
-    position: sticky;
-    /* App bar (64) plus the main padding (24). */
-    top: 88px;
-    max-height: calc(100vh - 112px);
-    overflow-y: auto;
-    /* Room for the scrollbar so it doesn't sit on the sheet. */
-    padding-right: 4px;
+@keyframes md-progress-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 

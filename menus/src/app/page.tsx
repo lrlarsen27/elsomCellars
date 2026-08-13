@@ -19,14 +19,15 @@ export default function HomePage() {
           Menus
         </h2>
         <p className="md-body-large md-on-surface-variant" style={{ marginBottom: 32 }}>
-          Pick a menu to edit its text and export a print-ready PDF.
+          Pick a menu to see how it will print and export a PDF. The content
+          itself lives in the spreadsheet.
         </p>
 
         <ul className="md-card" style={{ listStyle: "none", margin: 0, padding: 8 }}>
           {MENUS.map((menu, index) => (
             <li key={menu.id}>
               {index > 0 ? <hr className="md-divider" style={{ margin: "4px 16px" }} /> : null}
-              <Link href={`/edit/${menu.id}`} className="md-list-item">
+              <Link href={`/menu/${menu.id}`} className="md-list-item">
                 <span className="leading">
                   <MenuBookIcon />
                 </span>

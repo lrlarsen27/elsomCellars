@@ -1,111 +1,66 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { MenuForm } from "./MenuForm";
 import { MenuPreview } from "./MenuPreview";
-import { flowBlocksIntoColumns, placementByBlock } from "@/menus/templates/layout";
-import { ArrowBackIcon, CheckCircleIcon, DownloadIcon, ErrorIcon, SaveIcon } from "@/components/Icon";
+import { flowBlocksIntoColumns } from "@/menus/templates/layout";
+import { ArrowBackIcon, DownloadIcon, ErrorIcon } from "@/components/Icon";
+import { loadMenuContent, sheetConfigFromEnv, type SheetFailure, type SheetWarning } from "@/lib/sheet";
 import type { MenuContent } from "@/lib/schema";
 
 /**
- * A plain editing page. No PDF is rendered here — the layout engine only runs
- * when someone exports.
+ * Preview and export. The menu's content lives in a spreadsheet, so there is
+ * nothing to edit here — this page reads the sheet, draws the sheet as it will
+ * print, and exports the PDF.
  *
- * What survives from the layout engine is the *placement*, which is cheap to
- * compute and shown next to each section so nobody has to export a PDF to find
- * out where their edit landed.
+ * Everything runs in the browser. The page itself is a static file.
  */
 
-type SaveState = "idle" | "saving" | "saved" | "error";
+type LoadState =
+  | { phase: "loading" }
+  | { phase: "loaded"; content: MenuContent; warnings: SheetWarning[] }
+  | { phase: "failed"; failure: SheetFailure };
 
-/** How long the "Saved" snackbar stays up. M3's "long" duration. */
-const SNACKBAR_MS = 4000;
-
-export function Editor({
-  menuId,
-  menuLabel,
-  initialContent,
-}: {
-  menuId: string;
-  menuLabel: string;
-  initialContent: MenuContent;
-}) {
-  const [content, setContent] = useState<MenuContent>(initialContent);
-  const [savedContent, setSavedContent] = useState<MenuContent>(initialContent);
-  const [saveState, setSaveState] = useState<SaveState>("idle");
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [showSaved, setShowSaved] = useState(false);
+export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: string }) {
+  // The build prerenders this component, so the first render must not depend on
+  // anything only the browser knows. Loading is the honest initial state.
+  const [state, setState] = useState<LoadState>({ phase: "loading" });
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
-  const isDirty = useMemo(
-    () => JSON.stringify(content) !== JSON.stringify(savedContent),
-    [content, savedContent],
-  );
-
-  // Pure arithmetic over the block list — no PDF engine involved.
-  const flow = useMemo(() => flowBlocksIntoColumns(content.blocks), [content.blocks]);
-  const placement = useMemo(() => placementByBlock(flow.columns), [flow]);
-
-  // Don't let someone close the tab on unsaved edits without a nudge.
-  useEffect(() => {
-    if (!isDirty) return;
-    function warn(event: BeforeUnloadEvent) {
-      event.preventDefault();
-      event.returnValue = "";
+  const load = useCallback(() => {
+    const config = sheetConfigFromEnv();
+    if (!config) {
+      setState({
+        phase: "failed",
+        failure: {
+          kind: "unreachable",
+          detail: "This site was built without a spreadsheet to read. See menus/README.md.",
+        },
+      });
+      return;
     }
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [isDirty]);
 
-  // The success snackbar is transient; the error one stays until the next save.
-  useEffect(() => {
-    if (!showSaved) return;
-    const timer = window.setTimeout(() => setShowSaved(false), SNACKBAR_MS);
-    return () => window.clearTimeout(timer);
-  }, [showSaved]);
-
-  const handleChange = useCallback((next: MenuContent) => {
-    setContent(next);
-    setSaveState("idle");
-    setSaveError(null);
+    setState({ phase: "loading" });
+    void loadMenuContent(config).then((result) => {
+      setState(
+        result.ok
+          ? { phase: "loaded", content: result.content, warnings: result.warnings }
+          : { phase: "failed", failure: result.failure },
+      );
+    });
   }, []);
 
-  async function handleSave() {
-    setSaveState("saving");
-    setSaveError(null);
+  useEffect(load, [load]);
 
-    try {
-      const response = await fetch(`/api/menus/${menuId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(content),
-      });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        setSaveState("error");
-        setSaveError(data.error ?? "Couldn't save.");
-        return;
-      }
-
-      setSavedContent(content);
-      setSaveState("saved");
-      setShowSaved(true);
-    } catch {
-      setSaveState("error");
-      setSaveError("Couldn't reach the server.");
-    }
-  }
-
-  async function handleDownload() {
+  async function handleDownload(content: MenuContent) {
     setDownloading(true);
     setDownloadError(null);
 
     try {
-      // The PDF engine is imported only here, at export time. It never loads
-      // as part of the editing page.
+      // The PDF engine is imported only here, at export time. Keeping it a bare
+      // dynamic import inside the handler is deliberate — it never enters the
+      // prerender graph, and next/dynamic fails to resolve this package.
       const [{ pdf }, { renderMenuDocument }] = await Promise.all([
         import("@react-pdf/renderer"),
         import("@/menus/templates"),
@@ -124,12 +79,15 @@ export function Editor({
       link.download = `elsom-${menuId}-menu-${slugify(content.season) || "current"}.pdf`;
       link.click();
       URL.revokeObjectURL(url);
-    } catch {
-      setDownloadError("Couldn't build the PDF.");
+    } catch (error) {
+      setDownloadError(describeExportFailure(error));
     } finally {
       setDownloading(false);
     }
   }
+
+  const content = state.phase === "loaded" ? state.content : null;
+  const flow = content ? flowBlocksIntoColumns(content.blocks) : null;
 
   return (
     <div style={{ minHeight: "100vh" }}>
@@ -139,96 +97,138 @@ export function Editor({
         </Link>
         <h1 className="md-title-large title">{menuLabel}</h1>
 
-        {isDirty ? (
-          <span className="md-label-medium md-on-surface-variant" style={{ marginLeft: 4 }}>
-            Unsaved
-          </span>
+        {content ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
+            <button
+              type="button"
+              className="md-button filled"
+              onClick={() => handleDownload(content)}
+              disabled={downloading}
+            >
+              <DownloadIcon />
+              <span>{downloading ? "Building PDF…" : "Export PDF"}</span>
+            </button>
+          </div>
         ) : null}
-
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
-          <button
-            type="button"
-            className="md-button text"
-            onClick={handleSave}
-            disabled={!isDirty || saveState === "saving"}
-          >
-            <SaveIcon />
-            <span>{saveState === "saving" ? "Saving…" : "Save"}</span>
-          </button>
-          <button
-            type="button"
-            className="md-button filled"
-            onClick={handleDownload}
-            disabled={downloading}
-          >
-            <DownloadIcon />
-            <span>{downloading ? "Building PDF…" : "Export PDF"}</span>
-          </button>
-        </div>
       </header>
 
-      <main style={{ maxWidth: 1360, margin: "0 auto", padding: "24px 24px 96px" }}>
-        <div className="editor-layout">
-          <div>
+      <main style={{ maxWidth: 900, margin: "0 auto", padding: "24px 24px 96px" }}>
+        {state.phase === "loading" ? <Loading /> : null}
+
+        {state.phase === "failed" ? <Failure failure={state.failure} onRetry={load} /> : null}
+
+        {state.phase === "loaded" && flow ? (
+          <>
+            {state.warnings.length > 0 ? <Warnings warnings={state.warnings} /> : null}
+
             {flow.overflow ? (
-              <ErrorCard>
-                This is more than fits on the sheet — the last column runs past the
-                bottom of the page. Shorten something, or move a section up so it
-                lands in an earlier column.
-              </ErrorCard>
+              <Notice tone="error">
+                This is more than fits on the sheet — the last column runs past the bottom of the
+                page. Shorten something in the spreadsheet, or move a section up so it lands in an
+                earlier column.
+              </Notice>
             ) : null}
 
-            {downloadError ? <ErrorCard>{downloadError}</ErrorCard> : null}
+            {downloadError ? <Notice tone="error">{downloadError}</Notice> : null}
 
             <p className="md-body-medium md-on-surface-variant" style={{ marginBottom: 24 }}>
-              Edit the text below and the sheet beside it redraws as you type.
-              It&apos;s a close replica, not the PDF —{" "}
-              <strong>Export PDF</strong> for the file that goes to the printer.
+              This is the menu as it will print, read from the spreadsheet. Edit the spreadsheet to
+              change it, then reload this page.
             </p>
 
-            <MenuForm content={content} onChange={handleChange} placement={placement} />
-          </div>
-
-          <aside className="editor-preview" aria-label="Menu preview">
-            <MenuPreview content={content} columns={flow.columns} />
-          </aside>
-        </div>
+            <MenuPreview content={state.content} columns={flow.columns} />
+          </>
+        ) : null}
       </main>
+    </div>
+  );
+}
 
-      {/*
-        Save feedback moved out of the app bar and into a snackbar. The old
-        inline "Saved" text sat next to the buttons in 12px gray and was easy to
-        miss; the dirty state stays in the bar because it's a standing condition
-        rather than a one-off event.
-      */}
-      {saveState === "error" && saveError ? (
-        <div className="md-snackbar" role="alert">
-          <ErrorIcon />
-          <span className="md-body-medium" style={{ flexGrow: 1 }}>
-            {saveError}
-          </span>
-          <button type="button" className="md-button text action" onClick={handleSave}>
-            Retry
-          </button>
-        </div>
-      ) : showSaved ? (
-        <div className="md-snackbar" role="status">
-          <CheckCircleIcon />
-          <span className="md-body-medium">Saved</span>
-        </div>
+function Loading() {
+  return (
+    <div className="md-loading" role="status">
+      <span className="md-progress" aria-hidden="true" />
+      <p className="md-body-medium md-on-surface-variant">Reading the spreadsheet…</p>
+    </div>
+  );
+}
+
+function Failure({ failure, onRetry }: { failure: SheetFailure; onRetry: () => void }) {
+  if (failure.kind === "unreachable") {
+    return (
+      <Notice tone="error" action={{ label: "Try again", onClick: onRetry }}>
+        Couldn&apos;t read the spreadsheet. {failure.detail}
+      </Notice>
+    );
+  }
+
+  if (failure.kind === "empty") {
+    return (
+      <Notice tone="error" action={{ label: "Try again", onClick: onRetry }}>
+        The spreadsheet has no menu in it. Add some rows to the menu tab, then reload.
+      </Notice>
+    );
+  }
+
+  return (
+    <Notice tone="error" action={{ label: "Try again", onClick: onRetry }}>
+      Row {failure.row} of the spreadsheet couldn&apos;t be read. {failure.problem}
+    </Notice>
+  );
+}
+
+function Warnings({ warnings }: { warnings: SheetWarning[] }) {
+  return (
+    <Notice tone="error">
+      <span>
+        The menu below is complete apart from these, and exporting is fine:
+        <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
+          {warnings.map((warning) => (
+            <li key={`${warning.row}-${warning.problem}`}>
+              Row {warning.row}: {warning.problem}
+            </li>
+          ))}
+        </ul>
+      </span>
+    </Notice>
+  );
+}
+
+/** Stands in for M3's banner, which the spec dropped after M2. */
+function Notice({
+  children,
+  action,
+}: {
+  children: React.ReactNode;
+  tone: "error";
+  action?: { label: string; onClick: () => void };
+}) {
+  return (
+    <div className="md-card error" role="status" style={{ marginBottom: 20 }}>
+      <ErrorIcon />
+      <div className="md-body-medium" style={{ flexGrow: 1 }}>
+        {children}
+      </div>
+      {action ? (
+        <button type="button" className="md-button text" onClick={action.onClick}>
+          {action.label}
+        </button>
       ) : null}
     </div>
   );
 }
 
-/** Stands in for M3's banner, which the spec dropped after M2. */
-function ErrorCard({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="md-card error" role="status" style={{ marginBottom: 20 }}>
-      <ErrorIcon />
-      <p className="md-body-medium">{children}</p>
-    </div>
-  );
+/**
+ * The PDF renderer throws rather than substituting when a typeface fails to
+ * load, and the winery has no designer to interpret a stack trace — so lead
+ * with what to do and keep the cause as detail.
+ */
+function describeExportFailure(error: unknown): string {
+  const detail = error instanceof Error ? error.message : String(error);
+  if (/font/i.test(detail)) {
+    return `The typefaces didn't load, so the PDF wasn't built. Reload the page and export again. (${detail})`;
+  }
+  return `Couldn't build the PDF. (${detail})`;
 }
 
 function slugify(value: string): string {
