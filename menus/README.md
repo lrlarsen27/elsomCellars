@@ -52,25 +52,24 @@ The states it can be in, all reachable by changing the spreadsheet:
 ### The preview is a second renderer, and that is a real risk
 
 Two renderers draw the same sheet: `FoodMenu.tsx` for the PDF and
-`MenuPreview.tsx` for the screen. They agree today, but **they agree by
-coincidence, not by construction** — both write out the same design values
-independently rather than reading them from `theme.ts`. The season label's size
-and its `5.88` letter-spacing are hardcoded in both files, and the theme's own
-`tracking.seasonLabel` holds `3`, which neither reads.
+`MenuPreview.tsx` for the screen. They agree **by construction, not by
+vigilance** — every size, color, face and gap in both files is read from
+`templates/theme.ts`, so a design value has one place to change and no way to
+change for one renderer only. The working rule in `MenuPreview.tsx` is that a
+number typed into that file which isn't a page coordinate belongs in the theme
+instead.
 
-Edit one and not the other and the preview starts lying, with nobody positioned
-to catch it. Consolidating those values into the theme so both renderers read
-one source is outstanding work.
-
-What they do share already: the column flow from `flowBlocksIntoColumns` in
+They share more than values: the column flow from `flowBlocksIntoColumns` in
 `templates/layout.ts`, computed once and passed to both; the footer legend in
 `templates/legend.ts`; and the header lockup, generated from the same Figma path
 data.
 
-**What cannot be fixed by sharing values is line breaking inside a column**,
-because the browser and react-pdf wrap text with different algorithms — a
-near-full column may show one more or one fewer line than it prints. The PDF is
-the artefact of record. Export before sending anything to a printer.
+**What sharing values cannot fix is line breaking inside a column**, because the
+browser and react-pdf wrap text with different algorithms — a near-full column
+may show one more or one fewer line than it prints. That is the risk that
+remains, and no amount of consolidation closes it: the two engines measure text
+differently, and only one of them is what the printer receives. The PDF is the
+artefact of record. Export before sending anything to a printer.
 
 One trap worth recording: the app's baseline sets `line-height: 20px` and
 `letter-spacing: 0.25px` on `<body>`, and both inherit into the sheet. Left
@@ -198,20 +197,28 @@ npm run build   # static export into out/
 
 ## The layout reproduces the artboard
 
-Verified column by column against the Figma with the real menu content:
+Where `layout.ts` puts the real menu content:
 
 | Column | Contents |
 | --- | --- |
-| front left | Appetizers, Shareables, Salads, Sandwiches (2 items) |
-| front right | …Sandwiches continued (3), Plates (5), Note from Chef Dom |
-| back left | Heirloom Beverages, Coffee & Tea |
-| back right | Desserts (5) |
+| front left | Appetizers (3), Shareables (3), Salads (2) |
+| front right | Sandwiches (5) |
+| back left | Plates (5), Heirloom beverages (4) |
+| back right | Coffee & Tea (4), Desserts (5) |
 
-Getting there took two corrections worth knowing about, both recorded in
-`layout.ts`: sections must be allowed to split across a column break (the
-artboard's Sandwiches split is load-bearing — forbidding it pushed Plates onto
-the back page), and a section is moved whole to the next column rather than
-stranding fewer than two items in a headingless continuation.
+The front page matches the redesigned artboard column for column, checked when
+this flow landed. The back page is not compared against it, because the sheet's
+back-page content has moved on from what the artboard was drawn with — five
+desserts against its six, for one — so the break falls where it falls rather
+than being tuned to match a sheet that no longer exists.
+
+**Nothing splits across a column break on this content**, because no section is
+taller than a column. Splitting is still allowed and the allowance is
+load-bearing — forbidding it outright left the front page 700pt empty — but
+`layout.ts` reserves it for a section too tall for any single column to hold. A
+section that would fit in a column of its own is moved whole to the next one
+instead, which is why Sandwiches sits alone in the front right rather than
+starting under Salads and continuing over the fold.
 
 ## Fonts
 
@@ -305,9 +312,6 @@ Chosen deliberately, worth knowing before they surprise you:
   anything silently.
 - **The preview is a replica, not the PDF.** Line breaking inside a column can
   differ. See "The preview is a second renderer" above.
-- **Section-level add-ons are read but not printed.** The spreadsheet carries
-  them on five sections and the design has a place for them; the template does
-  not implement it yet.
 - **The dietary tag vocabulary is fixed at five values.** A sixth means changing
   both `schema.ts` and the printed footer legend.
 
