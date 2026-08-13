@@ -6,6 +6,7 @@ import { MenuPreview } from "./MenuPreview";
 import { flowBlocksIntoColumns } from "@/menus/templates/layout";
 import { ArrowBackIcon, DownloadIcon, ErrorIcon } from "@/components/Icon";
 import { loadMenuContent, sheetConfigFromEnv, type SheetFailure, type SheetWarning } from "@/lib/sheet";
+import { menuKindFor, type PrintableContent } from "@/menus/kinds";
 import type { MenuContent } from "@/lib/schema";
 
 /**
@@ -18,8 +19,19 @@ import type { MenuContent } from "@/lib/schema";
 
 type LoadState =
   | { phase: "loading" }
-  | { phase: "loaded"; content: MenuContent; warnings: SheetWarning[] }
+  | { phase: "loaded"; content: PrintableContent; warnings: SheetWarning[] }
   | { phase: "failed"; failure: SheetFailure };
+
+/**
+ * Transitional. The shell asks a menu's content for a season and nothing more,
+ * but the column flow and the preview it still calls are the food menu's own.
+ * Both move onto the menu's bundle in a later unit and this goes with them;
+ * until then the food menu is the only menu with either, so the content the
+ * shell is holding is always food content.
+ */
+function asFoodContent(content: PrintableContent): MenuContent {
+  return content as MenuContent;
+}
 
 export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: string }) {
   // The build prerenders this component, so the first render must not depend on
@@ -31,33 +43,42 @@ export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: strin
   // override rather than leaving it armed against content it was never for.
   const [exportAnyway, setExportAnyway] = useState(false);
 
+  // Resolution happens per menu, so a menu that was never wired up fails on its
+  // own page and leaves every other menu reading exactly as before.
   const load = useCallback(() => {
-    const config = sheetConfigFromEnv();
-    if (!config) {
+    const kind = menuKindFor(menuId);
+    if (!kind) {
       setState({
         phase: "failed",
         failure: {
-          kind: "unreachable",
-          detail: "This site was built without a spreadsheet to read. See menus/README.md.",
+          kind: "unconfigured",
+          menu: menuId,
+          detail: "This site has no reader for that menu.",
         },
       });
       return;
     }
 
+    const resolved = sheetConfigFromEnv(kind.source);
+    if (!resolved.ok) {
+      setState({ phase: "failed", failure: resolved.failure });
+      return;
+    }
+
     setState({ phase: "loading" });
     setExportAnyway(false);
-    void loadMenuContent(config).then((result) => {
+    void loadMenuContent(resolved.config).then((result) => {
       setState(
         result.ok
           ? { phase: "loaded", content: result.content, warnings: result.warnings }
           : { phase: "failed", failure: result.failure },
       );
     });
-  }, []);
+  }, [menuId]);
 
   useEffect(load, [load]);
 
-  async function handleDownload(content: MenuContent) {
+  async function handleDownload(content: PrintableContent) {
     setDownloading(true);
     setDownloadError(null);
 
@@ -70,7 +91,7 @@ export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: strin
         import("@/menus/templates"),
       ]);
 
-      const document = renderMenuDocument(menuId, content);
+      const document = renderMenuDocument(menuId, asFoodContent(content));
       if (!document) {
         setDownloadError("No template for this menu.");
         return;
@@ -91,7 +112,7 @@ export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: strin
   }
 
   const content = state.phase === "loaded" ? state.content : null;
-  const flow = content ? flowBlocksIntoColumns(content.blocks) : null;
+  const flow = content ? flowBlocksIntoColumns(asFoodContent(content).blocks) : null;
 
   // The fit check estimates from character counts and runs about 1% generous,
   // so a hard block would occasionally strand a menu that prints fine. It
@@ -160,7 +181,7 @@ export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: strin
               change it, then reload this page.
             </p>
 
-            <MenuPreview content={state.content} columns={flow.columns} />
+            <MenuPreview content={asFoodContent(state.content)} columns={flow.columns} />
           </>
         ) : null}
       </main>
@@ -178,6 +199,12 @@ function Loading() {
 }
 
 function Failure({ failure, onRetry }: { failure: SheetFailure; onRetry: () => void }) {
+  // No retry: the tab ids are baked in at build time, so reading again reads
+  // the same nothing. Offering the button would only look like it might help.
+  if (failure.kind === "unconfigured") {
+    return <Notice tone="error">This menu isn&apos;t set up to read yet. {failure.detail}</Notice>;
+  }
+
   if (failure.kind === "unreachable") {
     return (
       <Notice tone="error" action={{ label: "Try again", onClick: onRetry }}>
@@ -194,9 +221,17 @@ function Failure({ failure, onRetry }: { failure: SheetFailure; onRetry: () => v
     );
   }
 
+  if (failure.kind === "setting") {
+    return (
+      <Notice tone="error" action={{ label: "Try again", onClick: onRetry }}>
+        {failure.problem}
+      </Notice>
+    );
+  }
+
   return (
     <Notice tone="error" action={{ label: "Try again", onClick: onRetry }}>
-      Row {failure.row} of the spreadsheet couldn&apos;t be read. {failure.problem}
+      Row {failure.row} of the {failure.tab} tab couldn&apos;t be read. {failure.problem}
     </Notice>
   );
 }

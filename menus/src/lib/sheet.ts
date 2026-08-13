@@ -1,26 +1,22 @@
 import Papa from "papaparse";
-import {
-  DIETARY_TAGS,
-  type DietaryTag,
-  type MenuBlock,
-  type MenuContent,
-  type MenuItem,
-} from "./schema";
 
 /**
- * Reads menu content from a Google Sheet.
+ * Reads a menu's content from a Google Sheet.
  *
- * Two tabs, two requests: the export endpoint returns one tab per call. The
- * `Menu` tab is an ordered list of rows whose `Type` column says what each row
- * is; the `Settings` tab is key/value pairs for the header and footer strings.
+ * This module is the shared half and it names no menu. Fetching, CSV parsing,
+ * the structural checks and the failure taxonomy live here; the header
+ * vocabulary and the row grammar belong to each menu and live beside its
+ * mapper (`food-sheet.ts`, and a wine equivalent later). Keeping the alias
+ * table out of here matters: shared aliases would make one menu's column names
+ * silently valid on the other menu's tab.
  *
- * Row order *is* the menu order, and an item belongs to the nearest section row
- * above it. Nothing links them explicitly — that is deliberate, so there is no
- * second source of order to drift out of sync.
+ * Every menu is two tabs and two requests: its own tab, plus the `Settings` tab
+ * the whole spreadsheet shares. The export endpoint returns one tab per call.
  *
- * Nothing here throws past the caller. Every failure is described, and every
- * described failure names the spreadsheet row it came from so the person
- * fixing it can go straight there.
+ * Nothing here throws past the caller. Every failure is described, and a
+ * failure that came from a row names both the tab and the spreadsheet's own row
+ * number, so the person fixing it can go straight there. With two menus the
+ * spreadsheet has four tabs, and a bare row number no longer says where to go.
  */
 
 export type SheetFailure =
@@ -29,23 +25,77 @@ export type SheetFailure =
   /** Read fine, but there is no menu in it. A cleared tab must not print blank. */
   | { kind: "empty" }
   /** One row could not be interpreted. `row` is the spreadsheet's own row number. */
-  | { kind: "row"; row: number; problem: string };
+  | { kind: "row"; tab: string; row: number; problem: string }
+  /** A settings key this menu prints is not in the Settings tab. No row to name. */
+  | { kind: "setting"; tab: string; key: string; problem: string }
+  /**
+   * This menu has nothing to read from — the build carried no tab id for it.
+   * Its own kind rather than `unreachable`, because retrying cannot change a
+   * value that was baked in at build time.
+   */
+  | { kind: "unconfigured"; menu: string; detail: string };
 
 /** Non-blocking: the menu still renders, but something was dropped. */
 export type SheetWarning = { row: number; problem: string };
 
-export type SheetResult =
-  | { ok: true; content: MenuContent; warnings: SheetWarning[] }
+/**
+ * Parameterised by content type: the transport is the same for every menu, but
+ * what a mapper produces is that menu's own shape.
+ */
+export type SheetResult<C> =
+  | { ok: true; content: C; warnings: SheetWarning[] }
   | { ok: false; failure: SheetFailure; warnings: SheetWarning[] };
 
-export type SheetConfig = {
+/** One spreadsheet row, keyed by canonical column name. */
+export type SheetRow = { values: Record<string, string>; row: number };
+
+/**
+ * Everything the transport needs to read one menu: where its rows are, what its
+ * columns are called, what it cannot do without, and how a row becomes content.
+ */
+export type MenuSource<C> = {
+  /** Named when this menu is unconfigured. */
+  menuId: string;
+  /** How the tab is described in failure messages, e.g. "Food Menu". */
+  tabLabel: string;
+  /**
+   * The tab's `gid`. Undefined when the build carried none — which fails this
+   * menu only, and leaves every other menu resolvable.
+   */
+  tabId: string | undefined;
+  /** The variable that carries it, named in the message so the fix is obvious. */
+  tabIdVariable: string;
+  /** This menu's header vocabulary: canonicalised spelling to column name. */
+  aliases: Readonly<Record<string, string>>;
+  /**
+   * Columns the mapper reads, spelled as the editor writes them. Checked
+   * against the header row before any content row, so a missing one is
+   * reported against row 1 rather than silently emptying every value below it.
+   */
+  requiredColumns: readonly string[];
+  /** Settings keys this menu prints. An absent one blocks rather than printing blank. */
+  requiredSettings: readonly string[];
+  map: (menuRows: SheetRow[], settingsRows: SheetRow[]) => SheetResult<C>;
+};
+
+export type SheetConfig<C> = {
   sheetId: string;
   menuGid: string;
   settingsGid: string;
+  source: MenuSource<C>;
 };
+
+export type SheetConfigResult<C> =
+  | { ok: true; config: SheetConfig<C> }
+  | { ok: false; failure: SheetFailure };
 
 /** Injectable so tests never touch the network. */
 export type Fetcher = (url: string) => Promise<Response>;
+
+/** Shared by every menu — one settings tab for the whole spreadsheet. */
+export const SETTINGS_TAB_LABEL = "Settings";
+
+export const SETTINGS_ALIASES: Record<string, string> = { key: "key", value: "value" };
 
 // --------------------------------------------------------------- urls ---
 
@@ -57,32 +107,13 @@ export function exportUrl(sheetId: string, gid: string): string {
 
 /**
  * The sheet's headers are written for people, so they carry capitals and stray
- * spaces ("Add on", " Pairing"). Canonicalise before matching, and accept the
- * obvious synonyms rather than making the editor match a machine's spelling.
+ * spaces ("Add on", " Pairing"). Canonicalise before matching, and let each
+ * menu supply the synonyms it accepts rather than making the editor match a
+ * machine's spelling.
  */
-const COLUMN_ALIASES: Record<string, string> = {
-  type: "type",
-  name: "name",
-  title: "name",
-  price: "price",
-  description: "description",
-  body: "description",
-  tags: "tags",
-  tag: "tags",
-  "allergy tag": "tags",
-  "allergy tags": "tags",
-  "dietary tags": "tags",
-  "add on": "addOn",
-  addon: "addOn",
-  add_on: "addOn",
-  pairing: "pairing",
-  key: "key",
-  value: "value",
-};
-
-function canonicalHeader(header: string): string {
+export function canonicalHeader(header: string, aliases: Readonly<Record<string, string>>): string {
   const cleaned = header.trim().toLowerCase().replace(/\s+/g, " ");
-  return COLUMN_ALIASES[cleaned] ?? cleaned;
+  return aliases[cleaned] ?? cleaned;
 }
 
 /**
@@ -90,7 +121,7 @@ function canonicalHeader(header: string): string {
  * like `+ Grilled Chicken $6` get typed wrapped in quotes to escape that. The
  * quotes are a workaround, not content — strip a matched pair.
  */
-function clean(value: string | undefined): string {
+export function clean(value: string | undefined): string {
   const trimmed = (value ?? "").trim();
   if (trimmed.length >= 2 && trimmed.startsWith('"') && trimmed.endsWith('"')) {
     return trimmed.slice(1, -1).trim();
@@ -98,191 +129,96 @@ function clean(value: string | undefined): string {
   return trimmed;
 }
 
-// --------------------------------------------------------------- tags ---
-
-const TAG_LOOKUP = new Map<string, DietaryTag>(DIETARY_TAGS.map((tag) => [tag, tag]));
-
-/**
- * Sheet validation rejects bad input at typing time, but pasting defeats it and
- * the constraint appears nowhere in the exported CSV. So the vocabulary is
- * enforced here, where it actually matters.
- */
-function readTags(raw: string, row: number, warnings: SheetWarning[]): DietaryTag[] {
-  if (!raw) return [];
-
-  const tags: DietaryTag[] = [];
-  for (const piece of raw.split(/[,;|]/)) {
-    const normalized = piece.normalize("NFC").trim().toLowerCase().replace(/\s+/g, " ");
-    if (!normalized) continue;
-
-    const tag = TAG_LOOKUP.get(normalized);
-    if (tag) {
-      if (!tags.includes(tag)) tags.push(tag);
-    } else {
-      warnings.push({
-        row,
-        problem: `"${piece.trim()}" is not one of the menu's dietary tags, so it was left off. Allowed: ${DIETARY_TAGS.join(", ")}.`,
-      });
-    }
-  }
-  return tags;
-}
-
 // -------------------------------------------------------------- parse ---
 
-type Row = { values: Record<string, string>; row: number };
+export type ParsedTab = { headers: string[]; rows: SheetRow[] };
 
 /**
  * Empty lines are kept during parsing and filtered afterwards, so a row number
  * in an error message matches the row number in the spreadsheet. Skipping them
  * inside the parser would shift every later row and send people to the wrong
  * place.
+ *
+ * The header row comes back alongside the rows, because the checks that read it
+ * have to run before any content row is looked at.
  */
-function parseRows(csv: string): Row[] {
+export function parseTab(csv: string, aliases: Readonly<Record<string, string>>): ParsedTab {
   const parsed = Papa.parse<Record<string, string>>(csv, {
     header: true,
     delimiter: ",",
     skipEmptyLines: false,
     dynamicTyping: false,
-    transformHeader: canonicalHeader,
+    transformHeader: (header) => canonicalHeader(header, aliases),
   });
 
-  return parsed.data
-    .map((values, index) => ({ values, row: index + 2 })) // +1 for zero-index, +1 for the header row
-    .filter(({ values }) => Object.values(values).some((v) => (v ?? "").trim() !== ""));
+  return {
+    headers: (parsed.meta.fields ?? []).filter((field) => field !== ""),
+    rows: parsed.data
+      .map((values, index) => ({ values, row: index + 2 })) // +1 for zero-index, +1 for the header row
+      .filter(({ values }) => Object.values(values).some((v) => (v ?? "").trim() !== "")),
+  };
 }
 
-// ---------------------------------------------------------------- map ---
+// ---------------------------------------------------------- structure ---
 
-function blankItem(row: number): MenuItem {
-  return {
-    id: `item-${row}`,
-    name: "",
-    tags: [],
-    price: "",
-    description: "",
-    addOn: "",
-    pairing: "",
-  };
+function columnPhrase(missing: string[]): string {
+  const quoted = missing.map((value) => `"${value}"`);
+  if (quoted.length === 1) return `${quoted[0]} column`;
+  return `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]} columns`;
+}
+
+/** Compared after canonicalisation, so capitals, stray spaces and synonyms all match. */
+function missingColumns<C>(headers: string[], source: MenuSource<C>): string[] {
+  const present = new Set(headers);
+  return source.requiredColumns.filter(
+    (label) => !present.has(canonicalHeader(label, source.aliases)),
+  );
 }
 
 /**
- * Ids come from the spreadsheet row number rather than a random generator, so
- * the same sheet always maps to the same content. That keeps fixtures stable
- * and gives the page a durable handle on "the row that went wrong".
+ * A key present with a blank value counts as missing: the thing being closed
+ * here is a footer line that prints empty, and a blank cell prints exactly the
+ * same empty line as an absent row.
  */
-export function mapRows(menuRows: Row[], settingsRows: Row[]): SheetResult {
-  const warnings: SheetWarning[] = [];
-  const blocks: MenuBlock[] = [];
-  let openSection: Extract<MenuBlock, { kind: "section" }> | null = null;
+function missingSettings<C>(rows: SheetRow[], source: MenuSource<C>): string[] {
+  const present = new Set<string>();
+  for (const { values } of rows) {
+    const key = clean(values.key);
+    if (key && clean(values.value)) present.add(key);
+  }
+  return source.requiredSettings.filter((key) => !present.has(key));
+}
 
-  for (const { values, row } of menuRows) {
-    const type = clean(values.type).toLowerCase();
-    const name = clean(values.name);
-
-    if (!type) {
+function checkStructure<C>(
+  menuTab: ParsedTab,
+  settingsTab: ParsedTab,
+  source: MenuSource<C>,
+): SheetFailure | null {
+  // A tab with nothing in it at all is "empty", and the mapper says so with a
+  // better message than a list of every column it wanted.
+  if (menuTab.headers.length > 0 || menuTab.rows.length > 0) {
+    const missing = missingColumns(menuTab.headers, source);
+    if (missing.length > 0) {
       return {
-        ok: false,
-        warnings,
-        failure: { kind: "row", row, problem: "This row has no Type. Set it to Section, Item, or Note." },
+        kind: "row",
+        tab: source.tabLabel,
+        row: 1,
+        problem: `The header row has no ${columnPhrase(missing)}. Add ${missing.length === 1 ? "it" : "them"} to row 1 of the ${source.tabLabel} tab, or check the spelling.`,
       };
     }
+  }
 
-    if (type === "section") {
-      if (!name) {
-        return {
-          ok: false,
-          warnings,
-          failure: { kind: "row", row, problem: "This section has no name." },
-        };
-      }
-      openSection = { kind: "section", id: `section-${row}`, title: name, items: [] };
-      const addOn = clean(values.addOn);
-      if (addOn) openSection.addOn = addOn;
-      blocks.push(openSection);
-      continue;
-    }
-
-    if (type === "item") {
-      if (!openSection) {
-        return {
-          ok: false,
-          warnings,
-          failure: {
-            kind: "row",
-            row,
-            problem: "This item comes before any section, so there is nothing for it to belong to.",
-          },
-        };
-      }
-      if (!name) {
-        return {
-          ok: false,
-          warnings,
-          failure: { kind: "row", row, problem: "This item has no name." },
-        };
-      }
-      openSection.items.push({
-        ...blankItem(row),
-        name,
-        price: clean(values.price),
-        description: clean(values.description),
-        tags: readTags(clean(values.tags), row, warnings),
-        addOn: clean(values.addOn),
-        pairing: clean(values.pairing),
-      });
-      continue;
-    }
-
-    if (type === "note") {
-      if (!name) {
-        return {
-          ok: false,
-          warnings,
-          failure: { kind: "row", row, problem: "This note has no heading." },
-        };
-      }
-      blocks.push({
-        kind: "note",
-        id: `note-${row}`,
-        heading: name,
-        body: clean(values.description),
-      });
-      openSection = null;
-      continue;
-    }
-
+  const [key] = missingSettings(settingsTab.rows, source);
+  if (key) {
     return {
-      ok: false,
-      warnings,
-      failure: {
-        kind: "row",
-        row,
-        problem: `"${clean(values.type)}" is not a row type. Use Section, Item, or Note.`,
-      },
+      kind: "setting",
+      tab: SETTINGS_TAB_LABEL,
+      key,
+      problem: `The ${SETTINGS_TAB_LABEL} tab has no value for "${key}". This menu prints it, so it can't be left out.`,
     };
   }
 
-  if (blocks.length === 0) {
-    return { ok: false, warnings, failure: { kind: "empty" } };
-  }
-
-  const settings = new Map<string, string>();
-  for (const { values } of settingsRows) {
-    const key = clean(values.key);
-    if (key) settings.set(key, clean(values.value));
-  }
-
-  return {
-    ok: true,
-    warnings,
-    content: {
-      season: settings.get("season") ?? "",
-      disclaimer: settings.get("disclaimer") ?? "",
-      serviceCharge: settings.get("serviceCharge") ?? "",
-      blocks,
-    },
-  };
+  return null;
 }
 
 // --------------------------------------------------------------- load ---
@@ -316,10 +252,12 @@ async function readTab(url: string, fetcher: Fetcher): Promise<{ csv: string } |
   return { csv: await response.text() };
 }
 
-export async function loadMenuContent(
-  config: SheetConfig,
+export async function loadMenuContent<C>(
+  config: SheetConfig<C>,
   fetcher: Fetcher = (url) => fetch(url, { cache: "no-store" }),
-): Promise<SheetResult> {
+): Promise<SheetResult<C>> {
+  const { source } = config;
+
   const [menu, settings] = await Promise.all([
     readTab(exportUrl(config.sheetId, config.menuGid), fetcher),
     readTab(exportUrl(config.sheetId, config.settingsGid), fetcher),
@@ -328,16 +266,53 @@ export async function loadMenuContent(
   if (!("csv" in menu)) return { ok: false, failure: menu, warnings: [] };
   if (!("csv" in settings)) return { ok: false, failure: settings, warnings: [] };
 
-  return mapRows(parseRows(menu.csv), parseRows(settings.csv));
+  const menuTab = parseTab(menu.csv, source.aliases);
+  const settingsTab = parseTab(settings.csv, SETTINGS_ALIASES);
+
+  const structural = checkStructure(menuTab, settingsTab, source);
+  if (structural) return { ok: false, failure: structural, warnings: [] };
+
+  return source.map(menuTab.rows, settingsTab.rows);
 }
 
-/** Reads the ids the page was built with. */
-export function sheetConfigFromEnv(): SheetConfig | null {
+/**
+ * Reads the ids the page was built with, for one menu.
+ *
+ * The spreadsheet id and the settings tab are shared, so they are read here;
+ * the menu's own tab arrives on its source. That split is the point: an unset
+ * wine tab fails the wine page and leaves the food page resolving exactly as
+ * before.
+ *
+ * Both variables are read by literal property access. Next only inlines
+ * `process.env.NEXT_PUBLIC_*` where it can see the name in the source, so a
+ * table looked up by variable name would be `undefined` in the browser.
+ */
+export function sheetConfigFromEnv<C>(source: MenuSource<C>): SheetConfigResult<C> {
   const sheetId = process.env.NEXT_PUBLIC_SHEET_ID;
-  const menuGid = process.env.NEXT_PUBLIC_SHEET_MENU_GID;
   const settingsGid = process.env.NEXT_PUBLIC_SHEET_SETTINGS_GID;
-  if (!sheetId || !menuGid || !settingsGid) return null;
-  return { sheetId, menuGid, settingsGid };
-}
 
-export const __testing = { parseRows, clean, canonicalHeader };
+  if (!sheetId || !settingsGid) {
+    return {
+      ok: false,
+      failure: {
+        kind: "unconfigured",
+        menu: source.menuId,
+        detail:
+          "This site was built without a spreadsheet to read. Set NEXT_PUBLIC_SHEET_ID and NEXT_PUBLIC_SHEET_SETTINGS_GID, then build again. See menus/README.md.",
+      },
+    };
+  }
+
+  if (!source.tabId) {
+    return {
+      ok: false,
+      failure: {
+        kind: "unconfigured",
+        menu: source.menuId,
+        detail: `The ${source.menuId} menu has no tab to read. Set ${source.tabIdVariable} to the gid of its tab, then build again.`,
+      },
+    };
+  }
+
+  return { ok: true, config: { sheetId, menuGid: source.tabId, settingsGid, source } };
+}
