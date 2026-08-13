@@ -57,6 +57,18 @@ const SECTION_HEADER_HEIGHT =
   theme.space.sectionHeaderRuleOffset + theme.space.afterSectionHeader;
 
 /**
+ * A section carrying an add-on has a taller header — the add-on prints under
+ * the rule. Five of the food menu's sections have one, so ignoring this would
+ * under-estimate the sheet by about 100pt and push column breaks late.
+ */
+const SECTION_HEADER_WITH_ADDON_HEIGHT =
+  theme.space.sectionHeaderWithAddOn + theme.space.afterSectionHeader;
+
+function sectionHeaderHeight(addOn: string | undefined): number {
+  return addOn ? SECTION_HEADER_WITH_ADDON_HEIGHT : SECTION_HEADER_HEIGHT;
+}
+
+/**
  * Never strand fewer than this many items on either side of a column break.
  *
  * A continuation carries no heading, so a single item alone at the top of a
@@ -73,7 +85,15 @@ const MIN_FRAGMENT_ITEMS = 2;
  * without repeating the heading.
  */
 export type ColumnFragment =
-  | { kind: "section"; id: string; blockId: string; title: string; items: MenuItem[] }
+  | {
+      kind: "section";
+      id: string;
+      blockId: string;
+      title: string;
+      items: MenuItem[];
+      /** Applies to the whole section; prints under the header's rule. */
+      addOn?: string;
+    }
   | { kind: "section-continued"; id: string; blockId: string; items: MenuItem[] }
   | { kind: "note"; id: string; blockId: string; heading: string; body: string };
 
@@ -156,7 +176,7 @@ export function estimateBlockHeight(block: MenuBlock): number {
   const items = block.items.reduce((total, item) => total + estimateItemHeight(item), 0);
   const gaps = Math.max(0, block.items.length - 1) * theme.space.betweenItems;
 
-  return SECTION_HEADER_HEIGHT + items + gaps;
+  return sectionHeaderHeight(block.addOn) + items + gaps;
 }
 
 export type FlowResult = {
@@ -212,7 +232,9 @@ export function flowBlocksIntoColumns(blocks: MenuBlock[]): FlowResult {
 
     while (remaining.length > 0) {
       const gap = leadingGap();
-      const headerHeight = isFirstFragment ? SECTION_HEADER_HEIGHT : 0;
+      // Only the first fragment carries the header, so only it pays for the
+      // add-on line; a continuation has no heading at all.
+      const headerHeight = isFirstFragment ? sectionHeaderHeight(block.addOn) : 0;
       const available = COLUMN_HEIGHT - used[column] - gap - headerHeight;
 
       // Take as many whole items as fit in what's left of this column, counting
@@ -257,7 +279,14 @@ export function flowBlocksIntoColumns(blocks: MenuBlock[]): FlowResult {
         overflow = true;
         columns[column].push(
           isFirstFragment
-            ? { kind: "section", id: block.id, blockId: block.id, title: block.title, items: [forced] }
+            ? {
+                kind: "section",
+                id: block.id,
+                blockId: block.id,
+                title: block.title,
+                addOn: block.addOn,
+                items: [forced],
+              }
             : {
                 kind: "section-continued",
                 id: `${block.id}-cont`,
@@ -272,7 +301,14 @@ export function flowBlocksIntoColumns(blocks: MenuBlock[]): FlowResult {
 
       columns[column].push(
         isFirstFragment
-          ? { kind: "section", id: block.id, blockId: block.id, title: block.title, items: taken }
+          ? {
+              kind: "section",
+              id: block.id,
+              blockId: block.id,
+              title: block.title,
+              addOn: block.addOn,
+              items: taken,
+            }
           : {
               kind: "section-continued",
               id: `${block.id}-cont-${column}`,

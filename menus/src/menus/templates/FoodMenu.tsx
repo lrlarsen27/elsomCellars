@@ -46,9 +46,9 @@ const styles = StyleSheet.create({
     right: 0,
     top: 24,
     fontFamily: fonts.headingRegular,
-    fontSize: theme.size.seasonLabel + 4,
+    fontSize: theme.size.seasonLabel,
     color: theme.color.gold,
-    letterSpacing: 5.88,
+    letterSpacing: theme.tracking.seasonLabel,
     textTransform: "uppercase",
     textAlign: "right",
   },
@@ -66,7 +66,7 @@ const styles = StyleSheet.create({
   section: { marginBottom: theme.space.betweenSections },
   sectionHeader: {
     height: theme.space.sectionHeaderRuleOffset,
-    borderBottomWidth: 0.5,
+    borderBottomWidth: theme.space.ruleWidth,
     borderBottomColor: theme.color.rule,
     marginBottom: theme.space.afterSectionHeader,
   },
@@ -76,6 +76,14 @@ const styles = StyleSheet.create({
     color: theme.color.gold,
     letterSpacing: theme.tracking.sectionHeader,
     textTransform: "uppercase",
+  },
+  /** An add-on that applies to the whole section, below the rule. */
+  sectionAddOn: {
+    fontFamily: fonts.body,
+    fontSize: theme.size.sectionAddOn,
+    color: theme.color.description,
+    width: theme.space.itemTextWidth,
+    marginBottom: theme.space.afterSectionHeader,
   },
 
   // --- Item ---
@@ -106,7 +114,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: theme.size.description,
     lineHeight: theme.lineHeight.description,
-    color: theme.color.body,
+    color: theme.color.description,
   },
   /** The add-on run continues the description paragraph, set bold. */
   addOn: { fontFamily: fonts.bodyBold },
@@ -151,12 +159,12 @@ const styles = StyleSheet.create({
   footer: {
     width: theme.page.contentWidth,
     alignItems: "center",
-    gap: 4,
-    marginTop: 14,
+    gap: theme.space.footerGap,
+    marginTop: theme.space.footerTopMargin,
   },
   footerLine: {
     fontFamily: fonts.body,
-    fontSize: theme.size.footer + 2,
+    fontSize: theme.size.footer,
     color: theme.color.body,
     textAlign: "center",
   },
@@ -259,9 +267,14 @@ function ColumnBlock({ fragment }: { fragment: ColumnFragment }) {
       {/* A continuation carries no heading — it just picks up where the
           previous column left off, the way the artboard does. */}
       {fragment.kind === "section" ? (
-        <View style={styles.sectionHeader} wrap={false}>
-          <Text style={styles.sectionTitle}>{fragment.title}</Text>
-        </View>
+        <>
+          <View style={styles.sectionHeader} wrap={false}>
+            <Text style={styles.sectionTitle}>{fragment.title}</Text>
+          </View>
+          {fragment.addOn ? (
+            <Text style={styles.sectionAddOn}>{fragment.addOn}</Text>
+          ) : null}
+        </>
       ) : null}
 
       {fragment.items.map((item) => (
