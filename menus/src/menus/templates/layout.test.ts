@@ -58,6 +58,26 @@ describe("keeping sections whole", () => {
     expect(continuationsFor([huge], huge.id).length).toBeGreaterThan(0);
   });
 
+  it("names the column that ran over, and names none when nothing did", () => {
+    const fits = flowBlocksIntoColumns([section("Small", 4, LONG)]);
+    expect(fits.overflow).toBe(false);
+    expect(fits.overflowColumn).toBeNull();
+
+    // Five columns' worth of content on a four-column sheet.
+    const tooMuch = Array.from({ length: 5 }, (_, i) => section(`S${i}`, 14, LONG));
+    const over = flowBlocksIntoColumns(tooMuch);
+    expect(over.overflow).toBe(true);
+    expect(over.overflowColumn).toBe("Back right");
+  });
+
+  it("names the first column to overflow when a single item is taller than a column", () => {
+    const giant = section("Giant", 1, LONG.repeat(60));
+    const flow = flowBlocksIntoColumns([giant]);
+
+    expect(flow.overflow).toBe(true);
+    expect(flow.overflowColumn).toBe("Front left");
+  });
+
   it("counts a section add-on against the column, so headers with one are taller", () => {
     const plain = section("Plain", 4, LONG);
     const withAddOn: MenuBlock = { ...section("Added", 4, LONG), addOn: "+ Something $6" } as MenuBlock;

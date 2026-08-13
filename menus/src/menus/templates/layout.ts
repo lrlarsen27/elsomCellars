@@ -176,6 +176,12 @@ export type FlowResult = {
    * placed, where it visibly runs off the page — a silent drop would be worse.
    */
   overflow: boolean;
+  /**
+   * Which column ran over, named for a reader. Usually the last one, but not
+   * always: a single item taller than an empty column overflows wherever it
+   * happens to be, which can be the first. Null when nothing overflowed.
+   */
+  overflowColumn: (typeof SLOT_LABELS)[number] | null;
 };
 
 export function flowBlocksIntoColumns(blocks: MenuBlock[]): FlowResult {
@@ -184,6 +190,13 @@ export function flowBlocksIntoColumns(blocks: MenuBlock[]): FlowResult {
 
   let column = 0;
   let overflow = false;
+  let overflowSlot: number | null = null;
+
+  /** Records the first column to run over — later ones are consequences of it. */
+  function recordOverflow(): void {
+    overflow = true;
+    if (overflowSlot === null) overflowSlot = column;
+  }
 
   /** Moves to the next column. On the last one, records overflow and stays. */
   function advance(): boolean {
@@ -191,7 +204,7 @@ export function flowBlocksIntoColumns(blocks: MenuBlock[]): FlowResult {
       column += 1;
       return true;
     }
-    overflow = true;
+    recordOverflow();
     return false;
   }
 
@@ -266,7 +279,7 @@ export function flowBlocksIntoColumns(blocks: MenuBlock[]): FlowResult {
 
         const forced = remaining.shift();
         if (!forced) break;
-        overflow = true;
+        recordOverflow();
         columns[column].push(
           isFirstFragment
             ? {
@@ -329,5 +342,9 @@ export function flowBlocksIntoColumns(blocks: MenuBlock[]): FlowResult {
     }
   }
 
-  return { columns, overflow };
+  return {
+    columns,
+    overflow,
+    overflowColumn: overflowSlot === null ? null : SLOT_LABELS[overflowSlot],
+  };
 }

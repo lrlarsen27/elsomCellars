@@ -27,6 +27,9 @@ export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: strin
   const [state, setState] = useState<LoadState>({ phase: "loading" });
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  // Cleared by every load, so a re-read that fixes the fit also clears the
+  // override rather than leaving it armed against content it was never for.
+  const [exportAnyway, setExportAnyway] = useState(false);
 
   const load = useCallback(() => {
     const config = sheetConfigFromEnv();
@@ -42,6 +45,7 @@ export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: strin
     }
 
     setState({ phase: "loading" });
+    setExportAnyway(false);
     void loadMenuContent(config).then((result) => {
       setState(
         result.ok
@@ -89,6 +93,11 @@ export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: strin
   const content = state.phase === "loaded" ? state.content : null;
   const flow = content ? flowBlocksIntoColumns(content.blocks) : null;
 
+  // The fit check estimates from character counts and runs about 1% generous,
+  // so a hard block would occasionally strand a menu that prints fine. It
+  // blocks by default and lets someone say otherwise on purpose.
+  const blockedByFit = Boolean(flow?.overflow) && !exportAnyway;
+
   return (
     <div style={{ minHeight: "100vh" }}>
       <header className="md-top-app-bar">
@@ -103,7 +112,8 @@ export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: strin
               type="button"
               className="md-button filled"
               onClick={() => handleDownload(content)}
-              disabled={downloading}
+              disabled={downloading || blockedByFit}
+              title={blockedByFit ? "This menu doesn't fit on the sheet" : undefined}
             >
               <DownloadIcon />
               <span>{downloading ? "Building PDF…" : "Export PDF"}</span>
@@ -123,9 +133,23 @@ export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: strin
 
             {flow.overflow ? (
               <Notice tone="error">
-                This is more than fits on the sheet — the last column runs past the bottom of the
-                page. Shorten something in the spreadsheet, or move a section up so it lands in an
-                earlier column.
+                <span>
+                  This is more than fits on the sheet — the{" "}
+                  <strong>{(flow.overflowColumn ?? "last").toLowerCase()}</strong> column runs past
+                  the bottom of the page. Shorten something in the spreadsheet, or move a section
+                  up so it lands in an earlier column.
+                  <label
+                    style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}
+                    className="md-body-medium"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={exportAnyway}
+                      onChange={(event) => setExportAnyway(event.target.checked)}
+                    />
+                    Export anyway, with the overrun
+                  </label>
+                </span>
               </Notice>
             ) : null}
 
