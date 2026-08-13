@@ -69,17 +69,6 @@ function sectionHeaderHeight(addOn: string | undefined): number {
 }
 
 /**
- * Never strand fewer than this many items on either side of a column break.
- *
- * A continuation carries no heading, so a single item alone at the top of a
- * column reads as orphaned — it looks like a mistake rather than a runover.
- * When a split would leave a widow, the whole section moves to the next column
- * instead, provided it fits there. This is what puts all five desserts in the
- * back-right column, matching the artboard.
- */
-const MIN_FRAGMENT_ITEMS = 2;
-
-/**
  * What lands in a column. A section that spans a column break appears as one
  * `section` fragment followed by a `section-continued` fragment, which renders
  * without repeating the heading.
@@ -249,17 +238,18 @@ export function flowBlocksIntoColumns(blocks: MenuBlock[]): FlowResult {
         takenHeight += addition;
       }
 
-      // Would this split strand a widow? If the section would fit whole in a
-      // fresh column, start it there instead. `isFirstFragment` stays true and
-      // the new column is empty, so the retry takes everything and can't loop.
+      // A section that fits in a column of its own is never split across a
+      // column break — start it in a fresh column instead. That is what the
+      // artboard does: Desserts has six items and no orphan, and still sits
+      // whole in the back-right column. Splitting is reserved for a section too
+      // tall for any single column.
+      //
+      // `isFirstFragment` stays true and the new column is empty, so the retry
+      // takes everything and can't loop.
       const wouldSplit = taken.length > 0 && taken.length < remaining.length;
-      const strands =
-        wouldSplit &&
-        (taken.length < MIN_FRAGMENT_ITEMS ||
-          remaining.length - taken.length < MIN_FRAGMENT_ITEMS);
 
       if (
-        strands &&
+        wouldSplit &&
         isFirstFragment &&
         used[column] > 0 &&
         estimateBlockHeight(block) <= COLUMN_HEIGHT &&
