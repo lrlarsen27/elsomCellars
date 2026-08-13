@@ -38,16 +38,20 @@ winery needs a working document, it is a different file.
 ### 3. One tab per menu, plus a settings tab
 
 The sheet has three: **Food Menu**, **Wine Menu**, and **Settings**. Each menu
-gets its own tab; every menu tab follows the same row grammar below.
+gets its own tab. Every menu tab shares the same row grammar — a `Type` column
+saying what each row is, and row order deciding what prints where — but the
+columns differ per menu, because a wine carries two prices and an appellation
+where a dish carries dietary tags and a pairing.
 
 Tab names don't matter to the code — tabs are wired up by id, not by name — so
 renaming one is safe. Deleting and recreating one is not: that changes its id.
 
-### 4. Format two columns as plain text — before typing anything
+### 4. Format the name and price columns as plain text — before typing anything
 
 This step cannot be undone later, so do it first.
 
-Select **columns B and C** on the `Menu` tab, then:
+Select the name and price columns on **every** menu tab — **B and C** on the
+food tab, **B, C and D** on the wine tab, which carries two prices — then:
 
 > Format → Number → Plain text
 
@@ -56,7 +60,7 @@ currency formatting, and it exports as `$8.00`. Typing `1/2` becomes a date.
 Formatting the column as plain text afterwards does **not** restore the original
 — the cell has to be retyped. Doing it up front costs ten seconds.
 
-### 5. Build the `Menu` tab
+### 5. Build the `Food Menu` tab
 
 Row 1 holds the headers. The food menu tab uses these:
 
@@ -106,28 +110,67 @@ The sheet currently has one: `Nut free` on the Elsom brownie sundae. Adding a
 sixth tag means changing both the code and the printed footer legend, so it is a
 design decision rather than a spreadsheet one.
 
+### 5b. Build the `Wine Menu` tab
+
+Same grammar, different columns. Row 1 holds these:
+
+| A | B | C | D | E | F |
+|---|---|---|---|---|---|
+| `Type` | `Name` | `Bottle price` | `Glass price` | `Location` | `Tasting notes` |
+
+| `Type` | What it is | Columns it uses |
+|---|---|---|
+| `Section` | A heading like "Whites & Rosé" | `Name` |
+| `Item` | One wine | `Name`, `Bottle price`, `Glass price`, `Location`, `Tasting notes` |
+| `Experience` | The bordered box above the columns | `Name` (its title), `Bottle price` (its price), `Tasting notes` (its copy) |
+
+Three differences from the food tab worth knowing:
+
+- **There is no `Note` type.** Copying a chef's-note row across from the food
+  tab is rejected by name rather than printed.
+- **Either price may be empty.** A bottle-only reserve and a glass-only pour are
+  both ordinary entries; each price prints in its own column and the other stays
+  blank.
+- **`Experience` is the only row that may appear before the first section.** It
+  prints in the box across the top, not in a column, so its position in the sheet
+  is the one place row order does not decide where something lands. An `Item`
+  before the first section is still an error.
+
+`Location` is the appellation — "Yakima Valley", "Horse Heaven Hills". It prints
+on its own line between the wine's name and its tasting notes.
+
 ### 6. Build the `Settings` tab
 
-Two columns, three rows of content:
+Two columns, one row per key:
 
-| A | B |
-|---|---|
-| `key` | `value` |
-| `season` | Summer 2026 |
-| `disclaimer` | *Consuming raw or undercooked meats… |
-| `serviceCharge` | An 18% service charge is added… |
+| A | B | Read by |
+|---|---|---|
+| `key` | `value` | |
+| `season` | Summer 2026 | both menus |
+| `disclaimer` | *Consuming raw or undercooked meats… | food |
+| `serviceCharge` | An 18% service charge is added… | both menus |
+| `wineFooter` | 21+ Alcohol served to guest 21 and over… | wine |
 
-These are the header line and the two footer lines. Format column B as plain
-text too — the disclaimer starts with an asterisk, which Sheets will otherwise
-try to interpret.
+These are the header line and the footer lines. The food menu's footer is the
+disclaimer plus the service charge; the wine menu's is the 21+ notice plus the
+same service charge. Format column B as plain text too — the disclaimer starts
+with an asterisk, which Sheets will otherwise try to interpret.
+
+**Renaming a key blanks the menu that reads it.** `season`, `serviceCharge` and
+`wineFooter` are required: if one is missing the page says so and refuses to
+export, rather than printing a menu with a line silently absent.
 
 ### 7. Add guard rails
 
 **Restrict the `type` column.** Select column A (below the header):
 
 > Data → Data validation → Add rule
-> Criteria: **Dropdown**, with `section`, `item`, `note`
+> Criteria: **Dropdown**, with `section`, `item`, `note` on the food tab, and
+> `section`, `item`, `experience` on the wine tab
 > If the data is invalid: **Reject the input**
+
+Each menu tab gets its own value list. Sharing one list across both would offer
+`note` on the wine tab, where it is not a row type.
 
 Choose *Reject*, not *Show a warning*. Note that pasting into a cell can carry
 the source cell's rules over and defeat this — the page re-checks everything
@@ -159,9 +202,9 @@ spreadsheet's id is visible in the page's source, so link-level editing would
 let anyone who opens the page rewrite the printed menu. Grant editing
 individually, by email, to the winery staff who need it.
 
-### 10. Collect the three ids
+### 10. Collect the ids
 
-The app needs the spreadsheet id and both tab ids.
+The app needs the spreadsheet id, the settings tab id, and one tab id per menu.
 
 **Spreadsheet id** — from the URL, the long string between `/d/` and `/edit`:
 
@@ -170,24 +213,24 @@ https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOpQrStUvWxYz/edit#gid=0
                                        └──────────── this ────────────┘
 ```
 
-**Tab ids** — click the `Menu` tab and read the `gid=` at the end of the URL.
-Then click the `Settings` tab and read its `gid=`. They are different numbers;
-the first tab is usually `gid=0`.
+**Tab ids** — click each tab in turn and read the `gid=` at the end of the URL.
+Every tab has its own; the first one is usually `gid=0`.
 
-Put all three in `menus/.env.local`. For the current sheet they are:
+Put them in `menus/.env.local`. Each menu reads its own tab from its own
+variable, so leaving one unset fails only that menu's page. For the current
+sheet they are:
 
 ```
 NEXT_PUBLIC_SHEET_ID=1iWT7zhnVM6vsD3lBXNxeVbOTtbBuiDCVh-N_7jo6dHY
-NEXT_PUBLIC_SHEET_MENU_GID=0
 NEXT_PUBLIC_SHEET_SETTINGS_GID=1853508676
+NEXT_PUBLIC_SHEET_MENU_GID=0
+NEXT_PUBLIC_SHEET_WINE_GID=641246868
 ```
-
-The wine menu tab is `641246868`, for whenever its template exists.
 
 ### 11. Check it before handing it over
 
 Paste this into a browser, substituting your ids. It should download a CSV of
-the `Menu` tab:
+the tab whose gid you used — do it once per menu tab:
 
 ```
 https://docs.google.com/spreadsheets/d/<SPREADSHEET_ID>/export?format=csv&gid=<MENU_GID>
@@ -208,12 +251,16 @@ immediate — but confirm it once rather than assuming.
 
 ### Editing the menu
 
-Your menu is this spreadsheet. Change it here, then open the menu page, check
+Your menus are this spreadsheet. Change one here, then open its menu page, check
 the preview, and press **Export PDF** to get the file for the printer.
 
-You can change anything on this sheet: item names, prices, descriptions,
-whole sections. You cannot change the design — the fonts, colours, and layout
-live somewhere else, and nothing you type here can affect them.
+**There is one tab per menu.** The food menu and the wine menu are separate
+tabs with separate pages, and editing one has no effect on the other. If a
+change doesn't show up, check you were on the tab for the menu you opened.
+
+You can change anything on these tabs: names, prices, descriptions, whole
+sections. You cannot change the design — the fonts, colours, and layout live
+somewhere else, and nothing you type here can affect them.
 
 ### Four things to know
 
@@ -233,9 +280,10 @@ delete its row.
 **3. Anyone with the link can read this sheet.**
 Keep it to menu content only. No costs, no supplier details, no staff notes.
 
-**4. The price column is plain text on purpose.**
-Don't reformat it as currency. It is set up this way so `$14 / $48` and `$8`
-both print exactly as you typed them.
+**4. The price columns are plain text on purpose.**
+Don't reformat them as currency. They are set up this way so `$14 / $48` and
+`$8` both print exactly as you typed them. Reformatting afterwards does not
+undo the damage — the cell has to be retyped.
 
 ### Adding an item
 
@@ -250,6 +298,24 @@ Insert a row underneath the section it belongs to, then fill in:
 - **pairing** — e.g. `Pairs with 2024 Albarino`
 
 Leave anything that doesn't apply blank.
+
+### Adding a wine
+
+On the wine tab, insert a row underneath the section it belongs to, then fill in:
+
+- **Type** — pick `item` from the dropdown
+- **Name** — the wine, e.g. `2023 Albarino`
+- **Bottle price** — e.g. `$30`, or leave it empty if it isn't sold by the bottle
+- **Glass price** — e.g. `$12`, or leave it empty if it isn't poured by the glass
+- **Location** — the appellation, e.g. `Yakima Valley`
+- **Tasting notes** — the line underneath, e.g. `Green apple, citrus & tropical fruit`
+
+A wine can have one price or two. Whichever you fill in prints in its own
+column, and the other stays blank.
+
+To change the tasting flight at the top of the wine menu, edit the row whose
+**Type** is `experience` — its title, its price, and its copy are all on that
+one row.
 
 ### If something looks wrong
 
