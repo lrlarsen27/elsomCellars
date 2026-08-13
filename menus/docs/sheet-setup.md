@@ -5,12 +5,18 @@ this repo and in Figma. Neither one holds the other's values, which is why a
 redesign never has to be reconciled against edits the winery made in the
 meantime.
 
-This document has two parts. Part 1 is for whoever builds the spreadsheet —
-done once. Part 2 is the card to hand the winery.
+This document has two parts. Part 1 records the contract the spreadsheet
+follows and the setup that only needs doing once. Part 2 is the card to hand the
+winery.
+
+**The sheet already exists** — *Elsom Cellars - Master Menu*, with tabs for the
+food menu, the wine menu, and settings. Part 1 is written as build steps because
+it doubles as the recipe for the next one; where it describes something already
+done, treat it as a spec to check against rather than work to redo.
 
 ---
 
-## Part 1 — Building the sheet (once)
+## Part 1 — The sheet's contract
 
 ### 1. Create it in the winery's Google account, not yours
 
@@ -29,13 +35,13 @@ inside the page's JavaScript. Treat it as public.
 No supplier costs. No staff notes. No phone numbers. No scratch tabs. If the
 winery needs a working document, it is a different file.
 
-### 3. Create exactly two tabs
+### 3. One tab per menu, plus a settings tab
 
-Rename `Sheet1` to **`Menu`**, then add a second tab named **`Settings`**.
+The sheet has three: **Food Menu**, **Wine Menu**, and **Settings**. Each menu
+gets its own tab; every menu tab follows the same row grammar below.
 
-Spelling and capitalisation don't matter to the code — you'll wire the tabs up
-by id, not by name — but keeping them exact makes the rest of this document
-match what you see.
+Tab names don't matter to the code — tabs are wired up by id, not by name — so
+renaming one is safe. Deleting and recreating one is not: that changes its id.
 
 ### 4. Format two columns as plain text — before typing anything
 
@@ -52,20 +58,24 @@ Formatting the column as plain text afterwards does **not** restore the original
 
 ### 5. Build the `Menu` tab
 
-Row 1 holds the headers, exactly these, in this order:
+Row 1 holds the headers. The food menu tab uses these:
 
 | A | B | C | D | E | F | G |
 |---|---|---|---|---|---|---|
-| `type` | `name` | `price` | `description` | `tags` | `add_on` | `pairing` |
+| `Type` | `Name` | `Price` | `Description` | `Allergy Tag` | `Add on` | `Pairing` |
+
+Capitalisation and stray spaces are fine — the loader trims and case-folds
+header names, and accepts the obvious synonyms (`Tags` for `Allergy Tag`,
+`add_on` for `Add on`). Write them for people.
 
 Every row after that is one piece of the menu, **in the order it prints**. The
-`type` column says what kind of row it is:
+`Type` column says what kind of row it is, and is also case-insensitive:
 
-| `type` | What it is | Columns it uses |
+| `Type` | What it is | Columns it uses |
 |---|---|---|
-| `section` | A heading like "Small Bites" | `name` only |
-| `item` | A dish or drink | `name`, `price`, `description`, `tags`, `add_on`, `pairing` |
-| `note` | A standalone block like the note from Chef Dom | `name` (the heading), `description` (the body) |
+| `Section` | A heading like "Shareables" | `Name`, and optionally `Add on` for an add-on that applies to the whole section |
+| `Item` | A dish or drink | `Name`, `Price`, `Description`, `Allergy Tag`, `Add on`, `Pairing` |
+| `Note` | A standalone block like the note from Chef Dom | `Name` (the heading), `Description` (the body) |
 
 **An item belongs to the nearest `section` row above it.** There is no column
 linking them — position is the relationship. That is deliberate: it means
@@ -85,13 +95,16 @@ A few rows of a real menu look like this:
 Leave a cell empty when it doesn't apply. Empty is fine everywhere except
 `type` and `name`.
 
-**Dietary tags** go in the `tags` column, separated by a vertical bar `|` — not
-a comma, because the export format is comma-separated and a comma inside the
-cell makes the file ambiguous. The only accepted values are:
+**Dietary tags** go in the `Allergy Tag` column. Separate several with a comma,
+a semicolon, or a vertical bar — all three work, and a comma is safe because the
+whole cell is quoted in the export. Case doesn't matter. The accepted values are:
 
 `gf` · `gf+` · `v` · `v+` · `df`
 
 Anything else is dropped when the page renders, with a warning naming the row.
+The sheet currently has one: `Nut free` on the Elsom brownie sundae. Adding a
+sixth tag means changing both the code and the printed footer legend, so it is a
+design decision rather than a spreadsheet one.
 
 ### 6. Build the `Settings` tab
 
@@ -161,13 +174,15 @@ https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOpQrStUvWxYz/edit#gid=0
 Then click the `Settings` tab and read its `gid=`. They are different numbers;
 the first tab is usually `gid=0`.
 
-Put all three in `menus/.env.local`:
+Put all three in `menus/.env.local`. For the current sheet they are:
 
 ```
-NEXT_PUBLIC_SHEET_ID=1AbCdEfGhIjKlMnOpQrStUvWxYz
+NEXT_PUBLIC_SHEET_ID=1iWT7zhnVM6vsD3lBXNxeVbOTtbBuiDCVh-N_7jo6dHY
 NEXT_PUBLIC_SHEET_MENU_GID=0
-NEXT_PUBLIC_SHEET_SETTINGS_GID=123456789
+NEXT_PUBLIC_SHEET_SETTINGS_GID=1853508676
 ```
+
+The wine menu tab is `641246868`, for whenever its template exists.
 
 ### 11. Check it before handing it over
 
@@ -230,7 +245,7 @@ Insert a row underneath the section it belongs to, then fill in:
 - **name** — what it's called
 - **price** — anything you like: `$8`, `$14 / $48`, or leave it empty
 - **description** — the copy underneath the name
-- **tags** — any of `gf`, `gf+`, `v`, `v+`, `df`, separated by `|`
+- **Allergy Tag** — any of `gf`, `gf+`, `v`, `v+`, `df`, separated by commas
 - **add_on** — the bolded line, e.g. `– add grilled chicken +$6`
 - **pairing** — e.g. `Pairs with 2024 Albarino`
 

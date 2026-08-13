@@ -1,69 +1,83 @@
 # Menus
 
-Sign in with a shared passcode, edit the menu text, export a print-ready PDF.
+The winery edits the menu in a spreadsheet; this reads it, shows how it will
+print, and exports a print-ready PDF.
 
 Part of the [Elsom Cellars](../README.md) repo.
 
-> **Status:** runs locally and exports the real design. Verified from an actual
-> exported file: two 11×17 pages, all five typefaces embedded and subsetted,
-> the back-page watermark embedded with its alpha mask, and column placement
-> matching the artboard column by column.
+> **Status:** the food menu works end to end. Verified from the served static
+> build against the live spreadsheet: two 11×17 pages, all five typefaces
+> embedded and subsetted, the back-page watermark with its alpha mask, and
+> column placement matching the artboard column by column.
+>
+> Not done yet: the wine menu (designed and written, no template — see
+> [Adding the wine menu](#adding-the-wine-menu)), and deployment.
 
 ## The one idea
 
 A menu is **a locked template plus editable content**.
 
 - The **template** is code: `src/menus/templates/`. Type, spacing, color, page size.
-- The **content** is JSON: strings and tag choices. That's what the app edits.
+- The **content** is a Google Sheet: strings and tag choices, edited by the winery.
 
-There is no font picker or column chooser in the UI — not because they're
-disabled, but because `MenuContent` in `src/lib/schema.ts` has nowhere to put
-those values. Formatting can only change by editing the template in the repo.
+Neither holds the other's values. That is what makes a seasonal redesign safe —
+the design changes here, the content stays where it is, and nothing has to be
+reconciled by hand.
+
+There is no font picker or column chooser anywhere, and no spreadsheet column
+that could become one, because `MenuContent` in `src/lib/schema.ts` has nowhere
+to put such a value. Formatting can only change by editing the template.
 
 Column placement isn't stored either. It's computed from how much content there
 is, so nobody chooses it and nobody can break it.
 
-## The editor is a form beside a preview
+## The page is a preview and an export button
 
-Editing is an ordinary web form, with a live replica of the sheet next to it.
-**No PDF is rendered while editing** — the `@react-pdf/renderer` import is still
-dynamic and still only runs when someone presses Export. The preview is plain
-DOM nodes, so typing stays responsive.
+There is nothing to edit here. `src/components/Editor.tsx` reads the
+spreadsheet in the browser, draws a replica of the sheet, and exports the PDF
+when asked. **No PDF is rendered until Export** — the `@react-pdf/renderer`
+import is dynamic and lives inside the click handler, which is also the only
+import shape that resolves under this Next version.
 
-Each section also shows which column it will print in ("Front left", or "Front
-left to Front right" when it spans a break). That's cheap arithmetic over the
-block list, and it's read-only feedback — placement isn't editable.
+The states it can be in, all reachable by changing the spreadsheet:
+
+| State | What the page does |
+| --- | --- |
+| Loading | Spinner and "Reading the spreadsheet…". Every load crosses a network and a redirect, so this is the state seen most often. |
+| Unreachable | Says so, offers a retry. Usually means sharing was changed. |
+| Empty | Says the sheet has no menu in it, rather than printing two blank sides. |
+| Bad row | Names the spreadsheet row and what is wrong with it. |
+| Tag warning | Renders the menu, lists the affected rows, says export is unaffected. |
 
 ### The preview is a second renderer, and that is a real risk
 
-This file used to say there was deliberately *no* on-screen replica, because a
-second layout implementation can drift from the PDF. That reasoning was sound
-and the risk didn't go away; it got bounded structurally instead of by
-vigilance. `MenuPreview.tsx` contains no design values of its own:
+Two renderers draw the same sheet: `FoodMenu.tsx` for the PDF and
+`MenuPreview.tsx` for the screen. They agree today, but **they agree by
+coincidence, not by construction** — both write out the same design values
+independently rather than reading them from `theme.ts`. The season label's size
+and its `5.88` letter-spacing are hardcoded in both files, and the theme's own
+`tracking.seasonLabel` holds `3`, which neither reads.
 
-- Every size, colour, face and gap is read from `templates/theme.ts` — the same
-  object `FoodMenu.tsx` styles itself from.
-- Which fragment lands in which of the four columns comes from
-  `flowBlocksIntoColumns` in `templates/layout.ts`, computed once by the editor
-  and passed to both.
-- The header lockup is the same `ElsomLogo` as the app bar, generated from the
-  same Figma path data as the PDF's logo.
-- The footer legend moved to `templates/legend.ts` so both renderers read one
-  list rather than two copies.
+Edit one and not the other and the preview starts lying, with nobody positioned
+to catch it. Consolidating those values into the theme so both renderers read
+one source is outstanding work.
 
-So a design change still happens in one place. **What can still differ is line
-breaking inside a column**, because the browser and react-pdf wrap text with
-different algorithms — a near-full column may show one more or one fewer line
-than it prints. The PDF remains the artefact of record. Export before sending
-anything to a printer.
+What they do share already: the column flow from `flowBlocksIntoColumns` in
+`templates/layout.ts`, computed once and passed to both; the footer legend in
+`templates/legend.ts`; and the header lockup, generated from the same Figma path
+data.
+
+**What cannot be fixed by sharing values is line breaking inside a column**,
+because the browser and react-pdf wrap text with different algorithms — a
+near-full column may show one more or one fewer line than it prints. The PDF is
+the artefact of record. Export before sending anything to a printer.
 
 One trap worth recording: the app's baseline sets `line-height: 20px` and
 `letter-spacing: 0.25px` on `<body>`, and both inherit into the sheet. Left
 alone they cost the column area 35pt — enough to make a column look full on
 screen that prints fine. `MenuPreview` resets both to `normal`, which is what
 react-pdf does. Any new element in that file inherits from the sheet root, so
-this only needs solving once, but it's the kind of thing that silently comes
-back if the reset is removed.
+this only needs solving once, but it silently comes back if the reset is removed.
 
 While verifying this, one measurement worth knowing: the real column area is
 about **1017pt**, while `COLUMN_HEIGHT` in `layout.ts` budgets **1030**. The
@@ -75,7 +89,8 @@ runs about 1% generous, and a column right at the limit is the one to check.
 ## The design
 
 One tabloid sheet, 11" × 17", printed front and back. Built from the Figma file
-`ciJhmsPGUj0Gge5PKpBzhe`, page "POR", nodes `22:977` (front) and `22:1065` (back).
+`ciJhmsPGUj0Gge5PKpBzhe`, page "POR", nodes `22:977` (front) and `22:1065`
+(back). The wine menu is `29:5658`.
 
 Type is Barlow Condensed and Cormorant Garamond, gold `#8c734b` on body
 `#6f6455`, two 348pt columns with a 24pt gutter.
@@ -108,17 +123,12 @@ Two things worth knowing before you change any of it:
 - **Primary is a shade darker than the artboard gold**, `#816840` against
   `#8c734b`. The artboard value measures 4.50:1 on white and 4.28:1 on the
   app's cream background — under WCAG AA for text, and primary carries button
-  labels and focused field labels. The darker tone is 5.27:1 and 5.01:1. Print
-  isn't governed by WCAG and still uses the exact artboard gold, and so does
-  the logotype via `--elsom-gold`. Reverting is one line, at that cost.
+  labels. The darker tone is 5.27:1 and 5.01:1. Print isn't governed by WCAG and
+  still uses the exact artboard gold, and so does the logotype via
+  `--elsom-gold`. Reverting is one line, at that cost.
 - **There is one card treatment**, not a set: white, no outline, 16px corners,
-  elevation 1. An outlined variant and an `elevated` modifier both existed
-  early on and were removed, so no card can drift from any other. Everything
-  that needs to sit *inside* a card — the item rows in the editor — nests one
-  surface level up instead of drawing another border.
-- **The maroon now does something.** It was declared as `--accent` in this file
-  and used by nothing; it's the error role now, so destructive actions and
-  failed saves are in a brand color rather than a generic red.
+  elevation 1. An outlined variant and an `elevated` modifier both existed early
+  on and were removed, so no card can drift from any other.
 
 Typography is the M3 type scale set in the menu's own faces, which the PDF
 already ships so the UI costs no new files. Barlow Condensed carries every role
@@ -126,9 +136,6 @@ except display; Cormorant Garamond carries display, and only display — it's
 651KB and has no business at body size. Body copy is the one place the condensed
 face is wrong (menu descriptions are long and get read closely), so body roles
 fall through to Roboto and then the system stack.
-
-`public/fonts/` is already outside the auth matcher in `src/middleware.ts` for
-the PDF renderer's benefit, which is also why these load on the login screen.
 
 Icons are hand-drawn on Material's 24dp grid in `src/components/Icon.tsx`,
 **not** the shipped Google glyphs. Using the real symbol font would mean either a
@@ -149,49 +156,45 @@ Requires Node 18.17 or newer.
 npm install
 ```
 
-Copy `.env.local.example` to `.env.local` and fill in both values:
+Copy `.env.local.example` to `.env.local`. It holds the spreadsheet's id and the
+id of each tab the app reads:
 
-- `APP_PASSCODE` — what everyone types on the login screen.
-- `SESSION_SECRET` — signs the login cookie. Any long random string:
-  `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
+- `NEXT_PUBLIC_SHEET_ID` — from the sheet's URL, between `/d/` and `/edit`.
+- `NEXT_PUBLIC_SHEET_MENU_GID` — the `gid=` of the food menu tab.
+- `NEXT_PUBLIC_SHEET_SETTINGS_GID` — the `gid=` of the settings tab.
 
-Then:
+All three are **public by construction**: they ship inside the page's
+JavaScript, and the spreadsheet is readable by anyone with the link. Keep menu
+content only in that spreadsheet. Full setup instructions, including the sheet's
+column contract and the card to hand the winery, are in
+[`docs/sheet-setup.md`](docs/sheet-setup.md).
 
 ```bash
-npm run dev
+npm run dev     # http://localhost:3000
+npm test        # the sheet parser
+npm run build   # static export into out/
 ```
-
-Open http://localhost:3000 and sign in with whatever you set `APP_PASSCODE` to.
 
 ## Where things live
 
 | Path | What it does |
 | --- | --- |
+| `src/lib/sheet.ts` | Reads the spreadsheet and maps it to menu content. |
+| `src/lib/schema.ts` | The content model. Adding a field here makes it editable. |
+| `src/lib/seed.ts` | The original artboard copy. Kept as the reference the sheet was filled from. |
 | `src/menus/templates/theme.ts` | Type, spacing, color, page size, read from Figma. |
 | `src/menus/templates/FoodMenu.tsx` | The two-sided tabloid layout. |
 | `src/menus/templates/layout.ts` | Decides which column each block lands in. |
 | `src/menus/templates/logo.tsx` | Generated vector logo — don't hand-edit. |
 | `src/menus/templates/fonts.ts` | Font registration and the fallback switch. |
+| `src/menus/templates/legend.ts` | The footer legend, shared by the PDF and the preview. |
 | `src/menus/templates/assets/` | The Figma SVG exports the logo was generated from. |
-| `public/fonts/` | The embedded TTFs, with their OFL licences. |
-| `public/brand/` | The back-page watermark PNG. |
+| `src/components/Editor.tsx` | The page. Imports the PDF engine only on export. |
+| `src/components/MenuPreview.tsx` | The on-screen sheet. |
 | `src/app/globals.css` | The web UI's design system — Material 3 tokens and components. |
 | `src/components/Icon.tsx` | The icon set, drawn on Material's 24dp grid. |
-| `src/menus/templates/legend.ts` | The footer legend, shared by the PDF and the preview. |
-| `src/components/Editor.tsx` | The editing page. Imports the PDF engine only on export. |
-| `src/components/MenuPreview.tsx` | The on-screen sheet. No design values of its own. |
-| `src/lib/schema.ts` | What's editable. Adding a field here makes it editable. |
-| `src/lib/seed.ts` | Starting copy, transcribed from the artboards. |
-| `src/lib/store.ts` | Persistence. Swap this one file to change hosting. |
-| `src/components/MenuForm.tsx` | The editing form. |
-
-## Still outstanding
-
-**The wine menu** hasn't been designed — see below.
-
-One thing to watch: the watermark PNG is 738×741, which is about 247dpi at its
-215pt print size. It's a soft watercolour texture rather than type, so it should
-hold up, but if a printer objects, drop in a larger export at the same path.
+| `public/fonts/` | The embedded TTFs, with their OFL licences. |
+| `public/brand/` | The back-page watermark PNG. |
 
 ## The layout reproduces the artboard
 
@@ -222,9 +225,11 @@ Two traps worth recording, because both cost time:
   react-pdf needs TTF or OTF. These files came from `@expo-google-fonts/*`,
   which ships the original Google Fonts TTFs. That package is installed,
   copied from, then uninstalled — it is never imported.
-- **The font files must not sit behind auth.** The PDF renderer fetches them
-  itself, so `fonts/` is excluded from the middleware matcher in
-  `src/middleware.ts`. Gating them turned every font request into a 307.
+- **The font files are fetched by URL at export time**, by the PDF renderer
+  itself, from `/fonts/`. Anything that intercepts those paths breaks the export
+  — an earlier auth gate turned every font request into a 307. It also means the
+  site must be served from a domain root, or those root-absolute paths resolve
+  to nothing. See [Deploying](#deploying).
 
 `fonts.ts` has a `FONTS_INSTALLED` switch that reverts to the built-in PDF
 faces, useful for ruling fonts out while debugging.
@@ -243,55 +248,72 @@ system-wide.
 
 ## Adding the wine menu
 
-It hasn't been designed yet. When it is:
+The wine menu is designed (`29:5658`) and its content is written, on its own tab
+in the spreadsheet. What's missing is the code.
 
-1. Write the template in `src/menus/templates/`.
-2. Add it to the map in `src/menus/templates/index.tsx`.
-3. Add its metadata to `src/menus/registry.ts` and starting copy to `src/lib/seed.ts`.
+It is **not** a variation on the food menu. Its content shape differs — two
+prices rather than one, an AVA location, and tasting notes instead of a
+description — so it needs its own content model alongside `MenuItem`, not extra
+optional fields on it.
 
-Nothing else changes — the editor builds its form from the schema, not from a
-per-menu configuration.
+1. Extend `src/lib/schema.ts` with the wine content shape.
+2. Teach `src/lib/sheet.ts` to map the wine tab's columns.
+3. Write the template in `src/menus/templates/` and register it in
+   `templates/index.tsx`.
+4. Add its metadata to `src/menus/registry.ts` and its tab id to
+   `.env.local.example`.
 
 ## Deploying
 
-The app stores menus in `data/menus.json`. That works locally and **will not
-work on serverless hosting** — those filesystems are read-only or wiped between
-requests. Before deploying, rewrite `readMenu` and `writeMenu` in
-`src/lib/store.ts` against a real store (Vercel KV, Supabase, Cloudflare KV).
-Nothing else needs to change. Set `APP_PASSCODE` and `SESSION_SECRET` as
-environment variables on the host.
+`npm run build` writes a complete static site to `out/`. There is no server:
+every route is a file, and the menu content is fetched from the spreadsheet in
+the browser.
 
-If the host builds from the repo root, point it at this directory — the root
-has no build of its own.
+**Serve it from a domain root.** The typefaces and the watermark are registered
+at root-absolute paths (`/fonts/…`, `/brand/…`) inside JavaScript string
+literals and CSS, which Next does not rewrite. Under a subpath — a GitHub Pages
+project site, for example — those resolve to nothing, the PDF renderer throws on
+the failed font fetch, and the export button dies with no useful message.
+Netlify, Vercel, a user-level GitHub Pages site, or any host with a custom
+domain all serve from a root.
+
+`trailingSlash` is on, so each route is a directory index rather than a bare
+`.html` file. That removes any dependence on how the host handles extensionless
+requests.
+
+Set the three `NEXT_PUBLIC_SHEET_*` variables on the host at build time. If the
+host builds from the repo root, point it at this directory — the root has no
+build of its own.
 
 ## Known limits
 
 Chosen deliberately, worth knowing before they surprise you:
 
+- **Anyone with the link can read the spreadsheet, and its id is in the page.**
+  There is no sign-in. The menu is public information, but the spreadsheet must
+  therefore hold nothing else.
 - **Column breaks are estimated, not measured.** react-pdf can't measure text
   before laying it out, so `layout.ts` estimates heights from character counts.
-  It reproduces the artboard exactly on the current content, but it isn't
-  exact in general; a nearly-full column may render slightly over or under.
-  The preview is the truth. If breaks start landing wrong after a lot of edits,
+  It reproduces the artboard exactly on the current content, but it isn't exact
+  in general. If breaks start landing wrong after a lot of edits,
   `DESCRIPTION_CHARS_PER_LINE` is the dial to turn.
-- **One shared passcode, so no audit trail.** The app can't tell you who
-  changed a price.
-- **Last write wins.** Two people saving at the same moment: one silently
-  overwrites the other. Fix it with a real database and a version check if the
-  team grows.
+- **Row order is the only thing controlling column placement**, and a
+  `Data → Sort` in the spreadsheet rewrites it permanently for everyone. The
+  instruction card covers this; recovery is undo or version history.
 - **Overflow is visible, not prevented.** Past four columns' worth of content,
-  the editor warns and the PDF spills onto extra pages rather than dropping
+  the page warns and the PDF spills onto extra pages rather than dropping
   anything silently.
 - **The preview is a replica, not the PDF.** Line breaking inside a column can
   differ. See "The preview is a second renderer" above.
-- **Assets are fetched by URL at export time.** The watermark and fonts are
-  loaded from `/brand/` and `/fonts/`, which works in the browser. Rendering
-  the PDF server-side would need absolute URLs or filesystem paths instead.
-- **Cookie auth is a gate, not a vault.** Anyone with the passcode has full
-  access.
+- **Section-level add-ons are read but not printed.** The spreadsheet carries
+  them on five sections and the design has a place for them; the template does
+  not implement it yet.
+- **The dietary tag vocabulary is fixed at five values.** A sixth means changing
+  both `schema.ts` and the printed footer legend.
 
 ## Content notes
 
-The seed copy is transcribed verbatim from the artboards, including several
-apparent mistakes left in place on purpose — fixing menu copy is what this app
-is for. See the comment at the top of `src/lib/seed.ts`.
+The copy in `src/lib/seed.ts` is transcribed verbatim from the artboards,
+including several apparent mistakes left in place on purpose. It is no longer
+what the app renders — the spreadsheet is — but it remains the reference the
+sheet was filled from. See the comment at the top of that file.
