@@ -2,6 +2,7 @@
 title: Wine Menu - Plan
 type: feat
 date: 2026-08-13
+deepened: 2026-08-13
 topic: wine-menu
 artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
@@ -103,7 +104,7 @@ Underneath that sits a second problem the food menu has been living with. The lo
 
 - The rule colour and stroke drift. The Figma files draw section rules at `#CFC1AB`, 1pt; `menus/src/menus/templates/theme.ts` holds `#c9bda6` and `ruleWidth: 0.5`. This affects both menus, so it is a shared-token correction with its own before-and-after check, not wine scope.
 - Balancing the two wine columns. The artboard fills left to capacity then spills right, exactly as the food menu does, so this plan reproduces that. A balancing pass would be a design change.
-- Unifying the double flow computation. The food template computes its own column flow while the page computes another for the fit gate; this plan passes the flow into the wine renderers as a prop instead, and leaves the food path alone.
+- Balancing warning copy for a half-empty wine column. The artboard's right column ends well short of its budget and the plan reproduces that, so nothing warns when content leaves one column visibly short.
 
 **Not in scope**
 
@@ -125,18 +126,20 @@ Underneath that sits a second problem the food menu has been living with. The lo
 
 ### Key Technical Decisions
 
-- KTD1. **Resolve the sheet tab per menu, and let a missing one fail only that menu.** `sheetConfigFromEnv()` today reads three fixed variables and returns `null` unless all three are present, and the page's load path never passes its menu id. Adding a fourth required variable would blank the live food menu when the wine tab is unset; leaving the load path unchanged would render food content at the wine URL with no error. The tab id moves onto the menu's registry entry, and resolution takes the menu id. Governs R1, R15.
+- KTD1. **Resolve the sheet tab per menu, and let a missing one fail only that menu.** `sheetConfigFromEnv()` today reads three fixed variables and returns `null` unless all three are present, and the page's load path never passes its menu id. Adding a fourth required variable would blank the live food menu when the wine tab is unset; leaving the load path unchanged would render food content at the wine URL with no error. The tab id lives in the menu's source spec (KTD13), not on the registry entry, so the registry stays pure metadata and the transport never imports the menu catalogue. Read each variable by literal property access — Next inlines `NEXT_PUBLIC_*` only for literal reads, so a table that looks env up by variable name resolves to `undefined` in the browser. Governs R1, R15.
 - KTD2. **The wine tab keeps the food tab's positional row grammar and adds one row type for the feature block.** A wine belongs to the nearest section row above it, exactly as an item does today, so there is no second source of order. The tasting-experience block is a row of its own type rather than a settings key, so its price sits beside the prices it is priced against. Governs R2, R3.
-- KTD3. **Keep one shared transport and give each menu its own mapper.** Fetching, CSV parsing, and the `unreachable`/`empty`/`row` failure taxonomy stay in one module and are exercised by both menus. Row-to-content mapping is per menu, because the grammars differ. This is what keeps KD1's parallelism from becoming two copies of the network layer. Governs R2, R17.
-- KTD4. **A mapper declares the headers it requires, and a missing one is a row-1 failure.** The check runs against the parsed header row before any content row is read, so the message points at the header rather than at a wine. This closes the only failure in the system that degrades every row at once while reporting nothing. Governs R13.
-- KTD5. **Settings keys are typed required or optional per menu.** A required key that is absent is a blocking failure that names the key; an optional key that is absent stays an empty string. The wine menu marks its 21+ notice required. Governs R14.
+- KTD3. **The shared module names no menu.** Fetching, CSV parsing, and the failure taxonomy are common and stay in one module. Everything with a menu in it — the column aliases, the row grammar, the content mapping — moves out beside that menu's mapper, food's included. Leaving food's mapper and its alias table inside the module called shared would make each menu's header vocabulary silently valid for the other, and would widen the machinery KD1 says not to widen. Governs R2, R17.
+- KTD4. **A mapper declares the headers it requires, and a missing one is a row-1 failure naming the tab.** The check runs against the parsed header row before any content row is read, so the message points at the header rather than at a wine. Every row-level failure carries the tab it came from: with two menus the spreadsheet has four tabs, and a bare row number is ambiguous across them. This closes the only failure in the system that degrades every row at once while reporting nothing. Governs R13.
+- KTD5. **Settings keys are typed required or optional per menu, and an unconfigured menu is its own failure kind.** A required key that is absent is a blocking failure naming the key and its tab; an optional key that is absent stays an empty string. The wine menu marks its 21+ notice required. A menu whose tab id was never configured is not `unreachable` — that kind offers a retry, and retrying cannot change a value fixed at build time. Governs R14, R15.
 - KTD6. **The wine menu gets its own layout module, with its own slot count, column budget and line-width calibration.** Two slots, `Left` and `Right`. A column budget of 806pt, derived from the artboard: columns start at y=177 and must end at y=983 where the logo frame begins. Characters-per-line is re-measured against the wine text column of 230pt rather than inherited from the food menu's 314pt — the artboard's own wraps put it near 38 to 40, against the food menu's 54. The food menu's `layout.ts` is not touched. Governs R6, R8, R12, R17.
 - KTD7. **A wine section never splits across the column break.** The food menu allows splitting because its artboard depends on it; the wine artboard has no split, and a headingless continuation at the top of the right column would also arrive without price-column labels. A section too tall for a whole column still overflows visibly rather than being dropped. Governs R8, R9.
 - KTD8. **Budget the price-label height into every wine section header, whether or not the labels print.** The label rule makes a header's height depend on its position, while the flow computes position from heights — a loop the food menu does not have, because its add-on line is a property of the block regardless of where it lands. Paying the height everywhere keeps placement a pure function of content. Governs R8, R9.
 - KTD9. **Wine design values live in their own namespace in the theme, and no existing food token is retuned.** The wine menu contradicts `space.itemTextWidth`, `space.priceColumnWidth`, `space.afterHeaderDivider` and the effective description line height, and it introduces a colour (`#536940`) nothing else uses. Editing any of those in place would move a menu that is already in print. Governs R7, R17.
 - KTD10. **Generate the bottom lockup from a fresh Figma export into both renderers.** No horizontal lockup exists in either `menus/src/menus/templates/logo.tsx` or `menus/src/components/Logo.tsx`, and the two cannot share a component — react-pdf's `Svg`/`Path` are not DOM elements, and the PDF marks bake the gold in while the DOM marks take `currentColor`. Governs R10.
-- KTD11. **Assert in tests that every registered menu has a template.** Registration is two files: the registry drives the route and the home page, the template map drives export. Doing only the first produces a complete, correct-looking preview and a dead end at the Export click. Governs R16.
-- KTD12. **Add a `vitest` config with the `@` alias before any new test needs it.** The wine mapper and the registry consistency test both reach modules that import `@/…` at value position. Adding the config also changes how the three existing test files resolve, so the full suite is re-run on that change alone. Governs R2, R13, R16.
+- KTD11. **Catch a half-registered menu at compile time, not in a test.** Derive the menu-id union from the registry, and type both the template map and the menu-kind table as total records over it. A forgotten registration then fails `next build`. A runtime test asserting the same thing would have to reach the template module, which pulls `@react-pdf/renderer` and its module-level font registration into a Node test process. Keep one cheap source-text assertion that neither the registry nor the menu-kind module reaches the template module or the PDF package. Governs R16.
+- KTD12. **Add a `vitest` config with the `@` alias before any new test needs it.** The wine mapper reaches modules that import `@/…` at value position. Adding the config also changes how the existing test files resolve, so the full suite is re-run on that change alone. Governs R2, R13.
+- KTD13. **Each menu supplies one bundle: tab id, column aliases, required columns, required settings keys, mapper, column flow, preview element, and overflow advice.** Two constraints pick this over the alternatives, and both are import-graph facts rather than taste. The registry is read by a server component, so it cannot carry mappers, flows or client components. The PDF engine is reachable only through the dynamic import inside the export handler, so the bundle must never name a template. Branching on the menu id inside the page shell was rejected because it would put a menu conditional in the load path, the flow call, the preview choice and the fit copy — making the one file this plan keeps menu-agnostic the file every menu edits. One page component per menu was rejected because the surface being duplicated is the failure renderer, and this work adds three cases to it. The bundle splits in two: a source half (tab id, aliases, required columns, required settings keys, mapper) that is pure and server-safe, and a render half (flow, preview element, overflow advice) that is client-only. The shell selects its own bundle from the menu id — a server component cannot pass a function across the client boundary. Governs R6, R12, R15, R16.
+- KTD14. **The shell holds no content type.** The transport's result is parameterised by content type. The shell touches content in three places — it hands blocks to the flow, hands content to the preview, and reads the season for the download filename — and once the flow and the preview move into the bundle, its only remaining requirement is that content carries a season. That is the constraint it holds: a narrow structural one, not `unknown` and not a union of both menus. The bundle and the template map each re-narrow to their own concrete type inside their own entry. The preview is exposed as a function returning an element rather than a component reference, so the shell never has to name its prop types. Governs R7, R11, R17.
 
 ### High-Level Technical Design
 
@@ -245,6 +248,7 @@ Two consequences of that order are worth stating. U1 changes code the live food 
 | The label-height feedback loop places a section as first-in-column using a short header, then renders it tall and overruns. | KTD8 removes the loop by paying the label height on every header. |
 | The bottom lockup is derived from the header mark and prints subtly wrong. | KTD10 exports fresh artwork. The lockup is ~16% taller in proportion than the header logo, so a uniform scale is visibly wrong at 138pt wide. |
 | A wine misconfiguration blanks the food menu. | KTD1 resolves per menu; AE3 is the check. |
+| The per-menu bundle grows a template reference and pulls the PDF engine into the prerendered graph. The module already collects everything per-menu, and a template is per-menu, so it is one plausible edit away — and it would not reliably fail the build. | KTD13 forbids it by name, and U9 asserts from source text that neither the bundle nor the registry reaches the template module or the PDF package. |
 | The wine tab's prices were typed before the columns were plain text and print as `$30.00`. | U2 verifies the existing tab's formatting before any code depends on it. Not recoverable by reformatting; the cells must be retyped. |
 
 **Rollback.** There is no data to roll back. The design lives in Figma and in `menus/src/menus/templates/`, the content lives in the spreadsheet with its own revision history, and the food menu's last exported PDF stays printable throughout. Removing the wine menu is removing its registry row.
@@ -257,24 +261,27 @@ Two consequences of that order are worth stating. U1 changes code the live food 
 
 **Goal:** Content loads per menu, a missing tab affects only its own page, and a sheet the loader cannot read structurally says so.
 
-**Requirements:** R1, R13, R14, R15. Implements KTD1, KTD4, KTD5, KTD12.
+**Requirements:** R1, R13, R14, R15, R17. Implements KTD1, KTD3, KTD4, KTD5, KTD12, KTD13, KTD14.
 
 **Dependencies:** none.
 
 **Files:**
-- `menus/src/lib/sheet.ts`
+- `menus/src/lib/sheet.ts` (transport and failure taxonomy only, once the food specifics move out)
+- `menus/src/lib/food-sheet.ts` (new — the food mapper and its source spec, mirroring where the wine mapper will sit)
 - `menus/src/lib/sheet.test.ts`
-- `menus/src/menus/registry.ts` (the tab id joins the menu's entry)
-- `menus/src/components/Editor.tsx` (pass the menu id into the load path)
+- `menus/src/menus/kinds.ts` (new — the source half of the per-menu bundle)
+- `menus/src/components/Editor.tsx` (select the bundle from the menu id; hold no content type)
 - `menus/.env.local.example`
 - `menus/vitest.config.ts` (new)
 
 **Approach:**
-1. Add the `vitest` config with the `@` alias first, and re-run the existing suite on that change alone. The existing three files resolve differently afterwards.
-2. Move the per-menu tab id onto the registry entry, read from its own public environment variable. Keep the spreadsheet id and the settings tab id where they are — renaming either would break a deployed environment file.
-3. Take the menu id in the config resolution, and return a described failure naming the menu when its tab id is absent. A missing wine tab id must not affect the food menu's resolution.
-4. Add a required-header check that runs against the parsed header row before any content row, and reports a row-1 failure naming the missing column.
-5. Type settings keys as required or optional per menu. A missing required key becomes a blocking failure naming the key; optional keys keep today's empty-string behaviour.
+1. Add the `vitest` config with the `@` alias first, and re-run the existing suite on that change alone. The existing test files resolve differently afterwards.
+2. Parameterise the transport's result by content type, and narrow the shell's requirement on content to carrying a season (KTD14). Without this the transport stays typed to the food model and U3's mapper cannot reuse it.
+3. Split the food specifics out of the shared module (KTD3). The column aliases and the row grammar move beside the food mapper; the shared module keeps fetching, CSV parsing, and the failure taxonomy.
+4. Introduce the source half of the per-menu bundle (KTD13): tab id, column aliases, required columns, required settings keys, and mapper. Read each environment variable by literal property access. Keep the spreadsheet id and the settings tab id where they are — renaming either would break a deployed environment file.
+5. Add the unconfigured failure kind, and have the shell render it without a retry affordance.
+6. Add a required-header check that runs against the parsed header row before any content row, and reports a row-1 failure naming the missing column and its tab.
+7. Type settings keys as required or optional per menu. A missing required key becomes a blocking failure naming the key and its tab; optional keys keep today's empty-string behaviour.
 
 **Patterns to follow:** `menus/src/lib/sheet.ts` already establishes the described-failure convention (`unreachable` / `empty` / `row`, each carrying the spreadsheet's own row number) and the injectable `Fetcher`. Extend that taxonomy rather than introducing a second error style. `menus/src/lib/sheet.test.ts` builds CSV from a `HEADERS` constant that reproduces the sheet's real header spelling, including its stray spaces — keep that.
 
@@ -283,10 +290,11 @@ Two consequences of that order are worth stating. U1 changes code the live food 
 **Test scenarios:**
 - Covers AE2. A menu tab missing a required column returns a failure naming that column and pointing at the header row.
 - A tab whose headers carry different capitalisation and stray spaces still satisfies the required-header check.
-- A required settings key that is absent returns a blocking failure naming the key.
+- A required settings key that is absent returns a blocking failure naming the key and its tab.
 - An optional settings key that is absent still yields an empty string.
 - Covers AE3. Resolving the food menu's config succeeds while the wine menu's tab id is unset.
-- Resolving a menu whose tab id is unset returns a described failure naming that menu, not `null` for every menu.
+- Resolving a menu whose tab id is unset returns the unconfigured failure naming that menu, not `null` for every menu, and not the unreachable kind.
+- A row-level failure names the tab it came from as well as the row number.
 - The existing food-menu mapping tests pass unchanged.
 
 **Verification:** `npm test` passes, including the three existing files under the new config. `npm run build` stays green. A food menu PDF exported after this unit is visually identical to one exported before it.
@@ -329,8 +337,9 @@ Two consequences of that order are worth stating. U1 changes code the live food 
 
 **Files:**
 - `menus/src/lib/schema.ts` (the wine content types and their guards)
-- `menus/src/lib/wine-sheet.ts` (new — the wine mapper)
+- `menus/src/lib/wine-sheet.ts` (new — the wine mapper and its source spec)
 - `menus/src/lib/wine-sheet.test.ts` (new)
+- `menus/src/menus/kinds.ts` (the wine menu's source-half entry)
 
 **Approach:**
 1. Add the wine content types alongside the food ones: a wine carries a name, a bottle price, a glass price, a location and tasting notes, all strings, with either price allowed to be empty. Wine content carries an ordered block list, the tasting-experience block, the season, and its own footer lines.
@@ -338,7 +347,7 @@ Two consequences of that order are worth stating. U1 changes code the live food 
 3. Reuse the shared transport from U1 for fetching, parsing, and the failure taxonomy. Only the row-to-content mapping is new.
 4. Fold rows positionally: a section row opens a section, wine rows attach to it, the tasting-experience row is a standalone block.
 5. Synthesise block and wine ids from the spreadsheet row number, so the same tab always maps to the same content and a bad row keeps a durable position.
-6. Declare the wine tab's required columns and the wine menu's required settings keys through the mechanisms U1 added.
+6. Declare the wine tab's column aliases, required columns and required settings keys in its source spec beside the mapper, and register that spec as the wine menu's source-half bundle entry (KTD13). The wine tab's vocabulary must not reach the food menu's.
 7. Never throw past the caller. Zero mapped blocks is the described empty failure, not a blank menu.
 
 **Patterns to follow:** `menus/src/lib/sheet.ts`'s `mapRows` for the fold, its `clean()` for the quote-stripping Sheets adds to cells beginning with `+` or `-`, and `menus/src/lib/schema.ts`'s reject-rather-than-coerce guards. `menus/src/lib/sheet.test.ts` for fixture shape: header constants reproducing real spelling, CRLF joins, and narrowing helpers that throw on the wrong branch.
@@ -470,11 +479,12 @@ Two consequences of that order are worth stating. U1 changes code the live food 
 
 **Files:**
 - `menus/src/menus/templates/WineMenu.tsx` (new)
-- `menus/src/menus/templates/index.tsx` (register it)
+- `menus/src/menus/templates/index.tsx` (widen the dispatch to carry a flow; register the wine template)
+- `menus/src/menus/templates/FoodMenu.tsx` (take the flow as a prop; delete its own call)
 
 **Approach:**
 1. Write one `Document` holding one `Page`, against the food template's structure so the two stay reviewable side by side.
-2. Take the column flow as a prop rather than computing it, so the page's fit gate and the export cannot disagree. The food template keeps computing its own; unifying the two is deferred.
+2. Take the column flow as a prop rather than computing it, so the page's fit gate and the export cannot disagree. The dispatch has to widen to carry a flow for the wine template anyway, so hand the food template its flow in the same change and delete its own call — otherwise the templates folder ships two contracts about who owns placement, and the third menu copies whichever it meets first. The flow is pure and deterministic over the same input, so the printed output cannot move; the food PDF comparison is the check.
 3. Reuse the header unchanged — it is identical to the food menu's on every value, logo, season label and divider alike.
 4. Draw the feature block above the columns when the content carries one, and let the columns take its room when it does not.
 5. Draw the price-column labels only on fragments the flow marked label-bearing.
@@ -534,33 +544,34 @@ Component-level scenarios are proven by the manual gates in the Verification Con
 
 **Goal:** The winery opens the wine menu, reads it, and exports it.
 
-**Requirements:** R1, R4, R11, R12, R15, R16, R17. Serves AE3, AE4, AE6. Implements KTD1, KTD11.
+**Requirements:** R1, R4, R11, R12, R15, R16, R17. Serves AE3, AE4, AE6. Implements KTD11, KTD13, KTD14.
 
 **Dependencies:** U1, U3, U5, U7, U8.
 
 **Files:**
 - `menus/src/components/Editor.tsx`
-- `menus/src/menus/registry.ts`
-- `menus/src/menus/kinds.ts` (new — the per-menu bundle the shell dispatches on)
-- `menus/src/menus/registry.test.ts` (new)
+- `menus/src/menus/registry.ts` (the wine metadata row)
+- `menus/src/menus/kinds.ts` (the render half of the per-menu bundle)
+- `menus/src/menus/kinds.test.ts` (new)
 - `menus/README.md`
 - `menus/docs/sheet-setup.md`
 
 **Approach:**
-1. Keep the page shell's state machine menu-agnostic — loading, the failure branches, warnings, the export handler and its error reporting all stay as they are.
-2. Introduce a per-menu bundle carrying the mapper, the flow function, the slot labels and the preview component, and have the shell dispatch on it. Keep the registry free of both PDF imports and component imports; it stays the metadata table the route and the home page read.
-3. Rewrite the fit-gate copy per menu. The food menu's slot vocabulary does not survive a single-sided sheet, and the override's consequence changes: an overrun here prints on a second side the design does not have. Say that.
-4. Keep the export handler's dynamic import exactly where it is. It is the one import shape that resolves under this Next version, and reaching a template any other way pulls the PDF engine into the prerender graph.
+1. Keep the page shell's state machine menu-agnostic — loading, the failure branches, warnings, the export handler and its error reporting all stay as they are. The shell selects its own bundle from the menu id; the route passes strings only, since a server component cannot pass a function across the client boundary.
+2. Add the render half of the bundle (KTD13): the flow function, the preview element function, and the overflow advice. The source half already exists from U1 and U3.
+3. Carry the fit-gate copy as bundle data rather than a branch in the shell. The food menu's slot vocabulary does not survive a single-sided sheet, and the override's consequence changes: an overrun here prints on a second side the design does not have. The overflow column name already comes back from the flow, so only the advice string is per menu.
+4. Keep the export handler's dynamic import exactly where it is. It is the one import shape that resolves under this Next version, and reaching a template any other way pulls the PDF engine into the prerender graph. Pass the already-computed flow through it, for both menus.
 5. Add the wine menu's registry row with its own description. The home-page card is the only place staff learn which menu is which.
-6. Register the wine template, and add the test that every registered menu has one.
+6. Type the template map and the bundle table as total records over the registry's menu-id union (KTD11), so a forgotten registration fails the build.
 7. Update `menus/README.md`: the wine menu is no longer outstanding, the "Adding the wine menu" recipe describes the seams that now exist, and the "Where things live" table gains the new modules. Correct the stale comments in `registry.ts` and `templates/index.tsx`, which still describe the pre-spreadsheet workflow and predate the per-menu tab id.
 
 **Patterns to follow:** `menus/src/components/Editor.tsx` already isolates the PDF engine behind a dynamic import inside the click handler and branches on `failure.kind`. Extend both rather than adding a second shape.
 
 **Test scenarios:**
-- Covers R16. Every id in the registry has a template registered.
-- Every id in the registry has a per-menu bundle.
+- Covers R16. Removing a menu's template entry fails the type check rather than reaching the winery — asserted by the totality typing, not a runtime test that would import the PDF engine.
+- Neither the registry nor the menu-kind module reaches the template module or the PDF package, asserted from source text.
 - Covers AE3. With the wine tab id unset, the food menu's page still resolves its config and loads.
+- The unconfigured failure renders without a retry control.
 
 **Verification:** `npm run build` stays green. The wine page renders the live wine tab and exports a PDF. The food page is unchanged, confirmed against a PDF exported before the plan began.
 
