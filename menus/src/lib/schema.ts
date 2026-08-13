@@ -49,7 +49,19 @@ export type MenuItem = {
  * where things land.
  */
 export type MenuBlock =
-  | { kind: "section"; id: string; title: string; items: MenuItem[] }
+  | {
+      kind: "section";
+      id: string;
+      title: string;
+      items: MenuItem[];
+      /**
+       * An add-on that applies to the whole section rather than one item, e.g.
+       * "+ Grilled Chicken $6" on Salads. Optional because the printed template
+       * has no slot for it yet — the content is carried so nothing is lost, and
+       * it starts printing when the design says where it goes.
+       */
+      addOn?: string;
+    }
   | { kind: "note"; id: string; heading: string; body: string };
 
 export type MenuContent = {
@@ -117,6 +129,7 @@ function isMenuBlock(value: unknown): value is MenuBlock {
   if (block.kind === "section") {
     return (
       typeof block.title === "string" &&
+      (block.addOn === undefined || typeof block.addOn === "string") &&
       Array.isArray(block.items) &&
       block.items.every(isMenuItem)
     );

@@ -57,15 +57,16 @@ const SECTION_HEADER_HEIGHT =
   theme.space.sectionHeaderRuleOffset + theme.space.afterSectionHeader;
 
 /**
- * Never strand fewer than this many items on either side of a column break.
- *
- * A continuation carries no heading, so a single item alone at the top of a
- * column reads as orphaned — it looks like a mistake rather than a runover.
- * When a split would leave a widow, the whole section moves to the next column
- * instead, provided it fits there. This is what puts all five desserts in the
- * back-right column, matching the artboard.
+ * A section carrying an add-on has a taller header — the add-on prints under
+ * the rule. Five of the food menu's sections have one, so ignoring this would
+ * under-estimate the sheet by about 100pt and push column breaks late.
  */
-const MIN_FRAGMENT_ITEMS = 2;
+const SECTION_HEADER_WITH_ADDON_HEIGHT =
+  theme.space.sectionHeaderWithAddOn + theme.space.afterSectionHeader;
+
+function sectionHeaderHeight(addOn: string | undefined): number {
+  return addOn ? SECTION_HEADER_WITH_ADDON_HEIGHT : SECTION_HEADER_HEIGHT;
+}
 
 /**
  * What lands in a column. A section that spans a column break appears as one
@@ -73,7 +74,15 @@ const MIN_FRAGMENT_ITEMS = 2;
  * without repeating the heading.
  */
 export type ColumnFragment =
-  | { kind: "section"; id: string; blockId: string; title: string; items: MenuItem[] }
+  | {
+      kind: "section";
+      id: string;
+      blockId: string;
+      title: string;
+      items: MenuItem[];
+      /** Applies to the whole section; prints under the header's rule. */
+      addOn?: string;
+    }
   | { kind: "section-continued"; id: string; blockId: string; items: MenuItem[] }
   | { kind: "note"; id: string; blockId: string; heading: string; body: string };
 
@@ -156,7 +165,7 @@ export function estimateBlockHeight(block: MenuBlock): number {
   const items = block.items.reduce((total, item) => total + estimateItemHeight(item), 0);
   const gaps = Math.max(0, block.items.length - 1) * theme.space.betweenItems;
 
-  return SECTION_HEADER_HEIGHT + items + gaps;
+  return sectionHeaderHeight(block.addOn) + items + gaps;
 }
 
 export type FlowResult = {
@@ -167,6 +176,12 @@ export type FlowResult = {
    * placed, where it visibly runs off the page — a silent drop would be worse.
    */
   overflow: boolean;
+  /**
+   * Which column ran over, named for a reader. Usually the last one, but not
+   * always: a single item taller than an empty column overflows wherever it
+   * happens to be, which can be the first. Null when nothing overflowed.
+   */
+  overflowColumn: (typeof SLOT_LABELS)[number] | null;
 };
 
 export function flowBlocksIntoColumns(blocks: MenuBlock[]): FlowResult {
@@ -175,6 +190,13 @@ export function flowBlocksIntoColumns(blocks: MenuBlock[]): FlowResult {
 
   let column = 0;
   let overflow = false;
+  let overflowSlot: number | null = null;
+
+  /** Records the first column to run over — later ones are consequences of it. */
+  function recordOverflow(): void {
+    overflow = true;
+    if (overflowSlot === null) overflowSlot = column;
+  }
 
   /** Moves to the next column. On the last one, records overflow and stays. */
   function advance(): boolean {
@@ -182,7 +204,7 @@ export function flowBlocksIntoColumns(blocks: MenuBlock[]): FlowResult {
       column += 1;
       return true;
     }
-    overflow = true;
+    recordOverflow();
     return false;
   }
 
@@ -212,7 +234,9 @@ export function flowBlocksIntoColumns(blocks: MenuBlock[]): FlowResult {
 
     while (remaining.length > 0) {
       const gap = leadingGap();
-      const headerHeight = isFirstFragment ? SECTION_HEADER_HEIGHT : 0;
+      // Only the first fragment carries the header, so only it pays for the
+      // add-on line; a continuation has no heading at all.
+      const headerHeight = isFirstFragment ? sectionHeaderHeight(block.addOn) : 0;
       const available = COLUMN_HEIGHT - used[column] - gap - headerHeight;
 
       // Take as many whole items as fit in what's left of this column, counting
@@ -227,17 +251,18 @@ export function flowBlocksIntoColumns(blocks: MenuBlock[]): FlowResult {
         takenHeight += addition;
       }
 
-      // Would this split strand a widow? If the section would fit whole in a
-      // fresh column, start it there instead. `isFirstFragment` stays true and
-      // the new column is empty, so the retry takes everything and can't loop.
+      // A section that fits in a column of its own is never split across a
+      // column break — start it in a fresh column instead. That is what the
+      // artboard does: Desserts has six items and no orphan, and still sits
+      // whole in the back-right column. Splitting is reserved for a section too
+      // tall for any single column.
+      //
+      // `isFirstFragment` stays true and the new column is empty, so the retry
+      // takes everything and can't loop.
       const wouldSplit = taken.length > 0 && taken.length < remaining.length;
-      const strands =
-        wouldSplit &&
-        (taken.length < MIN_FRAGMENT_ITEMS ||
-          remaining.length - taken.length < MIN_FRAGMENT_ITEMS);
 
       if (
-        strands &&
+        wouldSplit &&
         isFirstFragment &&
         used[column] > 0 &&
         estimateBlockHeight(block) <= COLUMN_HEIGHT &&
@@ -254,10 +279,17 @@ export function flowBlocksIntoColumns(blocks: MenuBlock[]): FlowResult {
 
         const forced = remaining.shift();
         if (!forced) break;
-        overflow = true;
+        recordOverflow();
         columns[column].push(
           isFirstFragment
-            ? { kind: "section", id: block.id, blockId: block.id, title: block.title, items: [forced] }
+            ? {
+                kind: "section",
+                id: block.id,
+                blockId: block.id,
+                title: block.title,
+                addOn: block.addOn,
+                items: [forced],
+              }
             : {
                 kind: "section-continued",
                 id: `${block.id}-cont`,
@@ -272,7 +304,14 @@ export function flowBlocksIntoColumns(blocks: MenuBlock[]): FlowResult {
 
       columns[column].push(
         isFirstFragment
-          ? { kind: "section", id: block.id, blockId: block.id, title: block.title, items: taken }
+          ? {
+              kind: "section",
+              id: block.id,
+              blockId: block.id,
+              title: block.title,
+              addOn: block.addOn,
+              items: taken,
+            }
           : {
               kind: "section-continued",
               id: `${block.id}-cont-${column}`,
@@ -303,5 +342,9 @@ export function flowBlocksIntoColumns(blocks: MenuBlock[]): FlowResult {
     }
   }
 
-  return { columns, overflow };
+  return {
+    columns,
+    overflow,
+    overflowColumn: overflowSlot === null ? null : SLOT_LABELS[overflowSlot],
+  };
 }

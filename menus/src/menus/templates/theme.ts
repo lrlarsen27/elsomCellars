@@ -30,7 +30,10 @@ export const theme = {
   color: {
     /** Section headers, item names, prices, logo. MEASURED. */
     gold: "#8c734b",
-    /** Descriptions and pairing lines. MEASURED. */
+    /** Item descriptions and section add-ons. MEASURED (22:1010, 30:6347). */
+    description: "#413a30",
+    /** Footer lines. MEASURED (22:1064). Also the pairing line and chef note,
+     *  neither of which has been re-measured since the redesign. */
     body: "#6f6455",
     /** Rules under section headers and the header divider. APPROX. */
     rule: "#c9bda6",
@@ -55,17 +58,22 @@ export const theme = {
   },
 
   size: {
-    /** MEASURED. */
-    sectionHeader: 12,
+    /** MEASURED (30:6352). */
+    sectionHeader: 14,
+    /** The line under a section's rule, when it carries one. MEASURED (30:6347). */
+    sectionAddOn: 12,
+    /** MEASURED (22:1010). */
     itemName: 16,
     dietaryTag: 12,
     price: 16,
     description: 14,
-    /** APPROX — header season label and footer lines. */
-    seasonLabel: 12,
+    /** MEASURED (22:997). */
+    seasonLabel: 16,
+    /** APPROX — not re-measured since the redesign. */
     chefNoteHeading: 12,
     chefNoteBody: 12,
-    footer: 8,
+    /** MEASURED (22:1064). */
+    footer: 10,
   },
 
   tracking: {
@@ -73,8 +81,8 @@ export const theme = {
     sectionHeader: 2,
     itemName: 1,
     dietaryTag: 1,
-    /** APPROX. */
-    seasonLabel: 3,
+    /** MEASURED (22:997). */
+    seasonLabel: 5.88,
   },
 
   lineHeight: {
@@ -89,7 +97,22 @@ export const theme = {
     headerHeight: 50,
     afterHeaderDivider: 24,
     sectionHeaderRuleOffset: 22,
+    /**
+     * A section header is 22pt tall normally and 42pt when it carries an
+     * add-on, which sits below the rule. MEASURED (30:6352 vs 30:6347).
+     */
+    sectionHeaderWithAddOn: 42,
     afterSectionHeader: 10,
+    /** Every hairline on the sheet: the header divider and the section rules. */
+    ruleWidth: 0.5,
+    /** Between the three footer lines. MEASURED (22:1064). */
+    footerGap: 4,
+    /**
+     * Above the footer. This 14pt is the difference between COLUMN_HEIGHT's
+     * 1030 budget in `layout.ts` and the ~1017 of real column area, which is
+     * why the estimator runs about 1% generous.
+     */
+    footerTopMargin: 14,
     betweenItems: 10,
     afterItemName: 2,
     nameToTagGap: 8,

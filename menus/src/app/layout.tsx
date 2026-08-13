@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Elsom Cellars — Menus",
-  description: "Edit menu copy and export a print-ready PDF.",
+  description: "Preview the menu and export a print-ready PDF.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

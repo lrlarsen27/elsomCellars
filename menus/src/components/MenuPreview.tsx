@@ -58,7 +58,7 @@ const face = {
   bodyItalic: { fontFamily: CORMORANT, fontWeight: 400, fontStyle: "italic" },
 } as const;
 
-const rule = `0.5px solid ${theme.color.rule}`;
+const rule = `${theme.space.ruleWidth}px solid ${theme.color.rule}`;
 
 export function MenuPreview({
   content,
@@ -265,9 +265,9 @@ function Header({ season }: { season: string }) {
           position: "absolute",
           right: 0,
           top: 24,
-          fontSize: theme.size.seasonLabel + 4,
+          fontSize: theme.size.seasonLabel,
           color: theme.color.gold,
-          letterSpacing: 5.88,
+          letterSpacing: theme.tracking.seasonLabel,
           textTransform: "uppercase",
           textAlign: "right",
         }}
@@ -288,7 +288,7 @@ function Footer({
   const line = {
     ...face.body,
     margin: 0,
-    fontSize: theme.size.footer + 2,
+    fontSize: theme.size.footer,
     color: theme.color.body,
     textAlign: "center" as const,
   };
@@ -300,9 +300,9 @@ function Footer({
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        gap: 4,
+        gap: theme.space.footerGap,
         width: theme.page.contentWidth,
-        marginTop: 14,
+        marginTop: theme.space.footerTopMargin,
       }}
     >
       <p style={line}>
@@ -377,6 +377,20 @@ function Fragment({ fragment }: { fragment: ColumnFragment }) {
         </div>
       ) : null}
 
+      {fragment.kind === "section" && fragment.addOn ? (
+        <div
+          style={{
+            ...face.body,
+            fontSize: theme.size.sectionAddOn,
+            color: theme.color.description,
+            width: theme.space.itemTextWidth,
+            marginBottom: theme.space.afterSectionHeader,
+          }}
+        >
+          {fragment.addOn}
+        </div>
+      ) : null}
+
       {fragment.items.map((item) => (
         <Item key={item.id} item={item} />
       ))}
@@ -392,7 +406,7 @@ function Item({ item }: { item: MenuItem }) {
     margin: 0,
     fontSize: theme.size.description,
     lineHeight: theme.lineHeight.description,
-    color: theme.color.body,
+    color: theme.color.description,
     whiteSpace: "pre-wrap" as const,
   };
 
