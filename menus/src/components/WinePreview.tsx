@@ -477,17 +477,19 @@ function WineRow({ wine }: { wine: Wine }) {
           </div>
         </div>
 
-        {/* Both rows are drawn whether or not they carry text — see `detail`. */}
-        <p
-          style={{
-            ...detail,
-            minHeight: theme.wine.item.locationLineHeight,
-            fontSize: theme.wine.item.locationSize,
-            lineHeight: `${theme.wine.item.locationLineHeight}px`,
-          }}
-        >
-          {wine.location}
-        </p>
+        {/* Only for a wine that has one — an empty row prints as a bare gap. */}
+        {wine.location ? (
+          <p
+            style={{
+              ...detail,
+              minHeight: theme.wine.item.locationLineHeight,
+              fontSize: theme.wine.item.locationSize,
+              lineHeight: `${theme.wine.item.locationLineHeight}px`,
+            }}
+          >
+            {wine.location}
+          </p>
+        ) : null}
         <p
           style={{
             ...detail,

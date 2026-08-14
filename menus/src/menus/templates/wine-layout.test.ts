@@ -169,15 +169,22 @@ describe("estimating a wine's height", () => {
   });
 
   /**
-   * The artboard has exactly two item heights, and Vermouth — the one live wine
-   * with no appellation — is one of the 59s. The location row is part of the
-   * item component whether or not it carries text, so an empty one still costs
-   * its line rather than collapsing to a third height nothing on the sheet has.
+   * Vermouth is the one live wine with no appellation. Figma reports the same
+   * height for every instance of the wine component, which reads as though the
+   * row were always reserved — but the artboard renders Vermouth's note
+   * directly under its name, and a reserved row printed as a bare gap.
+   *
+   * Asserted as the difference rather than a literal, so it stays true if the
+   * line height or the gap ever moves.
    */
-  it("still reserves the location line for a wine with no appellation", () => {
-    const vermouth = wine("Vermouth", "", NOTES.longestOneLine);
+  it("costs no location line for a wine with no appellation", () => {
+    const withLocation = wine("Vermouth", "Yakima Valley", NOTES.longestOneLine);
+    const without = wine("Vermouth", "", NOTES.longestOneLine);
 
-    expect(estimateWineHeight(vermouth)).toBe(PRINTED_HEIGHT);
+    expect(estimateWineHeight(withLocation)).toBe(PRINTED_HEIGHT);
+    expect(estimateWineHeight(without)).toBe(
+      PRINTED_HEIGHT - theme.wine.item.locationLineHeight - theme.wine.item.innerGap,
+    );
   });
 });
 

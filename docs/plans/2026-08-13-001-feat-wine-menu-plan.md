@@ -417,7 +417,7 @@ Two consequences of that order are worth stating. U1 changes code the live food 
 **Approach:**
 1. Write a wine flow beside the food one. Two slots labelled `Left` and `Right`, an 806pt budget, and estimators calibrated to the wine item. Leave `menus/src/menus/templates/layout.ts` untouched.
 2. Re-measure characters-per-line against the 230pt text column. The artboard's own wraps bound it: a 37-character note stays on one line and a 41-character note wraps to two, so the figure sits between them rather than at the food menu's 54.
-3. Give the wine item exactly the two heights the artboard has — one where the tasting notes fit a line and one where they wrap to two — and account for the location line, which never wraps in the current content but can.
+3. Height a wine from what it carries: its name, its tasting notes, and its appellation when it has one. Figma reports a single height for every instance of the component, but that is the component's frame rather than what it draws — the artboard renders the one wine with no appellation with its note directly under its name. A row reserved for an absent appellation prints as a gap with nothing in it. The notes wrap to a second line at the calibrated width; the location can too, though nothing in the current content does.
 4. Budget the price-label height into every section header regardless of position, per KTD8.
 5. Mark the first section fragment in each column as label-bearing, so the renderers do not each decide it independently.
 6. Do not split a section across the column break. A section too tall for a whole column is placed and raises the overflow condition, so it is visible rather than dropped.

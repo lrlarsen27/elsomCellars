@@ -138,10 +138,11 @@ function countLines(text: string, charsPerLine: number): number {
  * column occupies no visible space, and counting it ran the food estimate about
  * 6% high — enough to push content off a page it fits.
  *
- * The location and notes rows are part of the item component whether or not
- * they carry text, so an empty one still costs its line. Vermouth is the proof:
- * it is the one live wine with no appellation, and the artboard gives it the
- * same height as every other single-line wine rather than a third one.
+ * A wine with no appellation costs no location line. The component reports a
+ * uniform height in Figma, which reads as though the row were always reserved,
+ * but the artboard renders Vermouth — the one live wine without one — with its
+ * tasting note directly under its name. An empty row held its space here and
+ * printed as a gap nothing filled.
  *
  * The title row is charged at the name's line height, not at the 22pt band the
  * artboard draws it in. The two differ by a point, and the point is real: the
@@ -153,10 +154,13 @@ function countLines(text: string, charsPerLine: number): number {
 export function estimateWineHeight(wine: Wine): number {
   const lines = (text: string) => Math.max(1, countLines(text, WINE_CHARS_PER_LINE));
 
+  const location = wine.location
+    ? theme.wine.item.innerGap + lines(wine.location) * theme.wine.item.locationLineHeight
+    : 0;
+
   return (
     theme.wine.item.nameLineHeight +
-    theme.wine.item.innerGap +
-    lines(wine.location) * theme.wine.item.locationLineHeight +
+    location +
     theme.wine.item.innerGap +
     lines(wine.tastingNotes) * theme.wine.item.notesLineHeight
   );

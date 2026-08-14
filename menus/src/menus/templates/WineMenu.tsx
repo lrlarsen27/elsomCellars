@@ -215,10 +215,10 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   /**
-   * `minHeight` rather than nothing: a wine with no appellation still reserves
-   * its line, because the artboard has exactly two item heights and a collapsed
-   * row would invent a third. Vermouth is the live case. A location long enough
-   * to wrap still grows, which is what the estimator charges for it too.
+   * Drawn only for a wine that has an appellation. Figma reports one height for
+   * every instance of the component, but the artboard renders Vermouth — the
+   * one live wine without one — with its note directly under its name. Reserved
+   * here, the empty row printed as a gap with nothing in it.
    */
   location: {
     minHeight: theme.wine.item.locationLineHeight,
@@ -332,8 +332,7 @@ function WineRow({ wine }: { wine: Wine }) {
         <View style={styles.itemTitleRow}>
           <Text style={styles.itemName}>{wine.name}</Text>
         </View>
-        {/* Both rows are drawn whether or not they carry text — see `location`. */}
-        <Text style={styles.location}>{wine.location}</Text>
+        {wine.location ? <Text style={styles.location}>{wine.location}</Text> : null}
         <Text style={styles.notes}>{wine.tastingNotes}</Text>
       </View>
 
