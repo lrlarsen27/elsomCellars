@@ -2,8 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowBackIcon, DownloadIcon, ErrorIcon } from "@/components/Icon";
-import { loadMenuContent, sheetConfigFromEnv, type SheetFailure, type SheetWarning } from "@/lib/sheet";
+import { ArrowBackIcon, DownloadIcon, ErrorIcon, OpenInNewIcon } from "@/components/Icon";
+import {
+  loadMenuContent,
+  sheetConfigFromEnv,
+  tabUrl,
+  type SheetFailure,
+  type SheetWarning,
+} from "@/lib/sheet";
 import { menuKindFor, type PrintableContent } from "@/menus/kinds";
 
 /**
@@ -43,10 +49,24 @@ export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: strin
   // override rather than leaving it armed against content it was never for.
   const [exportAnyway, setExportAnyway] = useState(false);
 
+  /*
+   * Resolved once, for two readers: the load below and the link out to the
+   * spreadsheet. Resolving separately in each would let the page offer a link
+   * to a tab it could not itself read — the ids are baked in at build time, so
+   * one resolution is the honest number of them. `kind` is a module constant,
+   * so this is stable and the load effect still runs once.
+   */
+  const resolved = useMemo(() => (kind ? sheetConfigFromEnv(kind.source) : null), [kind]);
+
+  /** Null whenever the ids are missing, which is exactly when the page has no
+   *  content to offer a link alongside. */
+  const sheetUrl =
+    resolved?.ok ? tabUrl(resolved.config.sheetId, resolved.config.menuGid) : null;
+
   // Resolution happens per menu, so a menu that was never wired up fails on its
   // own page and leaves every other menu reading exactly as before.
   const load = useCallback(() => {
-    if (!kind) {
+    if (!kind || !resolved) {
       setState({
         phase: "failed",
         failure: {
@@ -58,7 +78,6 @@ export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: strin
       return;
     }
 
-    const resolved = sheetConfigFromEnv(kind.source);
     if (!resolved.ok) {
       setState({ phase: "failed", failure: resolved.failure });
       return;
@@ -73,7 +92,7 @@ export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: strin
           : { phase: "failed", failure: result.failure },
       );
     });
-  }, [kind, menuId]);
+  }, [kind, menuId, resolved]);
 
   useEffect(load, [load]);
 
@@ -190,10 +209,28 @@ export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: strin
 
             {downloadError ? <Notice tone="error">{downloadError}</Notice> : null}
 
-            <p className="md-body-medium md-on-surface-variant" style={{ marginBottom: 24 }}>
+            <p className="md-body-medium md-on-surface-variant" style={{ marginBottom: 12 }}>
               This is the menu as it will print, read from the spreadsheet. Edit the spreadsheet to
               change it, then reload this page.
             </p>
+
+            {/* Lands on this menu's own tab, not the spreadsheet's first one —
+                the gid it links to is the gid the page just read from. Opens in
+                a new tab because the sentence above ends by asking for a
+                reload, which is the tab it is standing on. */}
+            {sheetUrl ? (
+              <div style={{ marginBottom: 24 }}>
+                <a
+                  className="md-button outlined"
+                  href={sheetUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <OpenInNewIcon />
+                  <span>Open the spreadsheet</span>
+                </a>
+              </div>
+            ) : null}
 
             {/* The preview is a function returning an element, not a component
                 reference, so this file never names a menu's prop types. */}

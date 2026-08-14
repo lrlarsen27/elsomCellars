@@ -109,6 +109,44 @@ const styles = StyleSheet.create({
   itemTags: {
     fontFamily: fonts.headingMedium,
     fontSize: theme.size.dietaryTag,
+    /*
+     * Drops the tag onto the name's baseline. `itemNameRow` asks for
+     * `alignItems: "baseline"`, and in the browser that is enough — CSS aligns
+     * the baselines themselves. react-pdf does not: it puts each run's baseline
+     * at `ascent x fontSize` below the top of its line box and aligns the boxes,
+     * so two runs at different sizes come out on different baselines however
+     * their line heights are set. Barlow Condensed has an ascent of 1em, which
+     * makes the error exactly the difference between the two sizes.
+     *
+     * Written as that difference rather than as the 4 it comes to, so changing
+     * either size in the theme keeps the tag on the line. Measured from the
+     * exported PDF's own text matrices, not from the preview — the preview was
+     * already correct and is not evidence about this.
+     */
+    /*
+     * Puts the tag on the name's baseline.
+     *
+     * `itemNameRow` asks for `alignItems: "baseline"`, and in the browser that
+     * is the whole story — CSS aligns the baselines themselves, and the preview
+     * measures the name, the tag and the price to within 0px of each other
+     * without any of this. react-pdf does not do that. It aligns the tops of
+     * the line boxes and then drops each baseline by its own box height, so two
+     * runs at different sizes land on different baselines and no amount of
+     * `alignItems` moves them. `marginTop` does not move them either — Yoga's
+     * baseline ignores it.
+     *
+     * The line box is the only lever, and the exported PDF's text matrices put
+     * the tag's baseline exactly one point off the name's for every point of
+     * line box: 22 gave +4, 14 gave -4, so 18 gives 0. That 18 is the name's
+     * own 22 less the 4 its type is larger, which is why it is written that way
+     * — change either size in the theme and the tag stays on the line.
+     *
+     * Measured from the PDF, not from the preview. The preview was already
+     * right and is not evidence about this.
+     */
+    lineHeight:
+      (theme.lineHeight.itemName - (theme.size.itemName - theme.size.dietaryTag)) /
+      theme.size.dietaryTag,
     color: theme.color.gold,
     letterSpacing: theme.tracking.dietaryTag,
     textTransform: "uppercase",

@@ -423,6 +423,12 @@ function Item({ item }: { item: MenuItem }) {
               style={{
                 ...face.headingMedium,
                 fontSize: theme.size.dietaryTag,
+                // No baseline nudge here, deliberately: the PDF's `itemTags`
+                // carries one because react-pdf aligns line boxes rather than
+                // baselines, and the browser needs no such correction. Measured
+                // on the rendered page, the name, the tag and the price share a
+                // baseline to within 0px. Copying the PDF's offset across would
+                // push the tag off the line it is already on.
                 color: theme.color.gold,
                 letterSpacing: theme.tracking.dietaryTag,
                 textTransform: "uppercase",
