@@ -4,7 +4,8 @@ import { createElement, type ReactElement } from "react";
 import { MenuPreview } from "@/components/MenuPreview";
 import { WinePreview } from "@/components/WinePreview";
 import { flowBlocksIntoColumns } from "@/menus/templates/layout";
-import { flowWineBlocksIntoColumns } from "@/menus/templates/wine-layout";
+import { WINE_COLUMN_HEIGHT, flowWineBlocksIntoColumns } from "@/menus/templates/wine-layout";
+import { theme } from "@/menus/templates/theme";
 import { FOOD_SOURCE } from "@/lib/food-sheet";
 import { WINE_SOURCE } from "@/lib/wine-sheet";
 import type { MenuSource } from "@/lib/sheet";
@@ -19,8 +20,11 @@ import { menuEntry, type MenuId } from "@/menus/registry";
  * row becomes content — is pure and server-safe, and lives beside each menu's
  * mapper in `lib/`. The RENDER half is here: the column flow, the on-screen
  * sheet, and what an overrun means on this menu's paper. Because the render
- * half names client components, this module is client-only, and only
- * `components/Editor.tsx` imports it.
+ * half names client components, this module is client-only, and the only module
+ * that imports anything from it at value position is `components/Editor.tsx`.
+ * `menus/templates/index.tsx` also names `PrintableContent` here, but that
+ * import is type-only and is erased at build, so importing the templates never
+ * drags this module — or its previews — into the PDF side of the boundary.
  *
  * Nothing here may name a template. The PDF engine is reachable only through
  * the dynamic import inside the export handler, and a template reference in
@@ -116,6 +120,21 @@ function menuKind<C extends PrintableContent, F>(spec: {
 }
 
 /**
+ * The wine columns' budget when there is no tasting-experience box above them.
+ *
+ * Both renderers give the columns a taller band in that case: they start at the
+ * header divider rather than below the box, and still run to the artboard's
+ * 983. Written as the same expression `styles.columnsBelowHeader` and its
+ * preview twin evaluate, rather than as the 913 they come to, so the three
+ * cannot drift apart. Budget the with-a-box 806 either way and the flow
+ * believes it has 107pt less than the sheet gives it: it breaks the columns
+ * early and reports an overrun that is not on the paper, which sends staff to
+ * the fit gate's override for nothing.
+ */
+const WINE_COLUMN_HEIGHT_WITHOUT_EXPERIENCE =
+  theme.wine.column.bottom - (theme.space.headerHeight + theme.wine.feature.afterHeaderDivider);
+
+/**
  * Total over `MenuId`: a menu registered in `registry.ts` and forgotten here
  * fails the type check, rather than reaching the winery as a page that says it
  * has no reader.
@@ -130,7 +149,11 @@ const KINDS: Record<MenuId, MenuKind> = {
   }),
   wine: menuKind({
     source: WINE_SOURCE,
-    flow: (content) => flowWineBlocksIntoColumns(content.blocks),
+    flow: (content) =>
+      flowWineBlocksIntoColumns(
+        content.blocks,
+        content.experience ? WINE_COLUMN_HEIGHT : WINE_COLUMN_HEIGHT_WITHOUT_EXPERIENCE,
+      ),
     preview: (content, columns) => createElement(WinePreview, { content, columns }),
     overflowAdvice:
       "Shorten something on the wine tab, or move a section up so it lands in the left column. This menu prints on one side, so exporting anyway puts the overrun on a second side the design does not have.",

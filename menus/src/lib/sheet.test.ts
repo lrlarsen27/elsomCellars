@@ -376,6 +376,34 @@ describe("the tab's structure", () => {
     });
   });
 
+  it("reports a required settings key that is present with a blank value", async () => {
+    // The row exists, so a key check alone would pass it — and the menu would
+    // print the empty line the check exists to stop. Same failure shape as the
+    // absent-key case above, deliberately: to a reader the two are one problem.
+    const settings = [
+      "key,value",
+      "season,Summer 2026",
+      "disclaimer,*Consuming raw",
+      "serviceCharge, ",
+    ].join("\r\n");
+
+    const result = failed(
+      await loadMenuContent(
+        CONFIG,
+        stubFetcher({
+          "0": csvResponse(menuCsv("Section,Plates,,,,,", "Item,Toast,$14,,,,")),
+          "99": csvResponse(settings),
+        }),
+      ),
+    );
+
+    expect(result.failure).toMatchObject({
+      kind: "setting",
+      tab: "Settings",
+      key: "serviceCharge",
+    });
+  });
+
   it("accepts a header row written for people, with capitals, stray spaces and synonyms", async () => {
     const csv = [
       " TYPE ,name,  Price ,DESCRIPTION,Tags, add_on ,Pairing",
@@ -480,6 +508,14 @@ describe("resolving a menu's tabs", () => {
     // Wine is a registered bundle now, so the unreadable case is an id nobody
     // has built. It must not resolve to the food menu's reader.
     expect(menuKindFor("dessert")).toBeUndefined();
+
+    // The two ids that make `menuEntry`'s `hasOwnProperty` guard the reason
+    // this passes rather than an incidental detail: every object inherits both,
+    // so a plain `table[menuId]` lookup would hand the route a function here
+    // and the shell would try to place a menu made of `Object.prototype`.
+    expect(menuKindFor("constructor")).toBeUndefined();
+    expect(menuKindFor("toString")).toBeUndefined();
+
     expect(menuKindFor("food")).toBeDefined();
   });
 

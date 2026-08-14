@@ -40,16 +40,41 @@ const TEMPLATE_DISPATCH = path.join(SRC, "menus/templates/index.tsx");
 const FORBIDDEN_PACKAGES = ["@react-pdf/renderer"];
 
 /**
- * Every specifier the file imports from, static and dynamic alike. The dynamic
- * form is the one the export handler uses, so a bundle that reached a template
- * "lazily" would still be caught.
+ * Every specifier the file imports from, in every shape that reaches a module.
+ * The dynamic form is the one the export handler uses, so a bundle that reached
+ * a template "lazily" would still be caught.
+ *
+ * Four shapes, because a detector that misses one is worse than no detector:
+ * it reports a clean walk over a graph it never finished, and the failure it
+ * guards against is silent to begin with. `from "x"` and `import("x")` are the
+ * shapes this repo writes; `import "x"` (side-effect only — and enough on its
+ * own to run react-pdf's module-scope font registration), `require("x")`, and a
+ * backtick-delimited specifier are the ones it does not write TODAY, which is
+ * exactly why nothing else would notice them going unwalked.
+ *
+ * Two deliberate narrowings, both about not matching prose. Backticks are
+ * accepted only in the call form, because that is the only place JavaScript
+ * allows them — a specifier after `from` or after a bare `import` must be a
+ * plain string literal — and this file's neighbours are full of doc comments
+ * that name a module in backticks after the word "from". And `\bimport\s+`
+ * cannot match `import(`, since the whitespace is required, so the side-effect
+ * branch and the dynamic branch stay separate.
  */
 function importSpecifiers(source: string): string[] {
   const specifiers: string[] = [];
-  const pattern = /\bfrom\s+["']([^"']+)["']|\bimport\(\s*["']([^"']+)["']/g;
+  const quoted = String.raw`["']([^"']+)["']`;
+  const backquoted = String.raw`["'\`]([^"'\`]+)["'\`]`;
+  const pattern = new RegExp(
+    [
+      String.raw`\bfrom\s+${quoted}`,
+      String.raw`\b(?:import|require)\(\s*${backquoted}`,
+      String.raw`\bimport\s+${quoted}`,
+    ].join("|"),
+    "g",
+  );
 
   for (const match of source.matchAll(pattern)) {
-    specifiers.push(match[1] ?? match[2]);
+    specifiers.push(match[1] ?? match[2] ?? match[3]);
   }
   return specifiers;
 }
@@ -152,6 +177,55 @@ describe("what the registry and the menu bundle are allowed to reach", () => {
     const walked = relative(reach.files);
     expect(walked).toContain("menus/templates/layout.ts");
     expect(walked).toContain("menus/templates/theme.ts");
+  });
+});
+
+/**
+ * The guard's own blind spot, covered.
+ *
+ * Everything above is only as good as the extraction: a shape the pattern does
+ * not recognise is a branch of the import graph that goes unwalked, and an
+ * unwalked branch looks exactly like a clean result. Each case below is a shape
+ * the repo does not currently write — which is precisely why nothing else would
+ * notice if it stopped being detected.
+ */
+describe("the detector that every assertion above rests on", () => {
+  const forbidden = FORBIDDEN_PACKAGES[0];
+
+  const shapes: Record<string, string> = {
+    "a static import": `import { Document } from "${forbidden}";`,
+    "a single-quoted static import": `import { Document } from '${forbidden}';`,
+    "a dynamic import": `const pdf = await import("${forbidden}");`,
+    "a bare side-effect import": `import "${forbidden}";`,
+    "a require call": `const pdf = require("${forbidden}");`,
+    "a backtick-delimited dynamic specifier": "const pdf = await import(`" + forbidden + "`);",
+    "a re-export": `export { Document } from "${forbidden}";`,
+  };
+
+  for (const [shape, source] of Object.entries(shapes)) {
+    it(`finds a forbidden package written as ${shape}`, () => {
+      expect(importSpecifiers(source)).toContain(forbidden);
+    });
+  }
+
+  it("does not read a doc comment naming a module in backticks as an import", () => {
+    // The narrowing that makes the backtick support safe here: every module in
+    // this repo carries prose like the line below, and a specifier after `from`
+    // is a plain string literal in JavaScript anyway.
+    const source = "/** Every size and colour is read from `./theme` rather than typed. */";
+
+    expect(importSpecifiers(source)).toEqual([]);
+  });
+
+  it("finds every specifier in a file that mixes the shapes", () => {
+    const source = [
+      `import { a } from "./a";`,
+      `import "./b";`,
+      `const c = require("./c");`,
+      `const d = await import("./d");`,
+    ].join("\n");
+
+    expect(importSpecifiers(source)).toEqual(["./a", "./b", "./c", "./d"]);
   });
 });
 

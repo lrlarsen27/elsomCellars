@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { loadMenuContent, parseTab, SETTINGS_ALIASES, type SheetResult } from "./sheet";
 import { mapWineRows, WINE_SOURCE } from "./wine-sheet";
+import { WINE_FEATURE_CHARS_PER_LINE } from "@/menus/templates/wine-layout";
 import type { WineContent } from "./schema";
 import { csvResponse, stubFetcher, useSheetEnv } from "./sheet-test-support";
 
@@ -264,6 +265,57 @@ describe("the tasting experience row", () => {
 
     expect(result.content.experience).toBeDefined();
     expect(result.content.blocks.map((block) => block.title)).not.toContain("Tasting Experience");
+  });
+
+  /**
+   * The box the description prints in is a fixed 76pt frame in both renderers,
+   * and its copy is an ordinary spreadsheet cell the winery can lengthen at any
+   * time. Nothing flows around it and the column budget never sees it, so an
+   * over-long description prints straight over the border while the fit gate
+   * still reports the sheet as fitting. Warning, not failing: the precedent is
+   * the priceless wine above — it still prints, and this says so first.
+   */
+  it("maps the live experience row without warning about its length", () => {
+    const result = ok(map(LIVE_CSV));
+
+    // The premise: the live copy is 83 characters, inside the box's budget.
+    expect(result.content.experience!.description).toHaveLength(83);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("warns when the description is longer than the one line its box holds, naming its row", () => {
+    const long = "A".repeat(WINE_FEATURE_CHARS_PER_LINE + 1);
+    const result = ok(
+      map(
+        wineCsv(
+          `Experience,Tasting Experience,$20,,,${long}`,
+          "Section,Reds,,,,",
+          "Item,2021 Syrah,$55,,Red Mountain,Cocao",
+        ),
+      ),
+    );
+
+    expect(result.content.experience!.description).toBe(long);
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]).toMatchObject({ row: 2 });
+    expect(result.warnings[0].problem).toContain("Tasting Experience");
+  });
+
+  it("stays quiet at exactly the length the box holds", () => {
+    // The other side of the boundary: a one-sided test would pass for any
+    // budget at all in the lenient direction.
+    const exact = "A".repeat(WINE_FEATURE_CHARS_PER_LINE);
+    const result = ok(
+      map(
+        wineCsv(
+          `Experience,Tasting Experience,$20,,,${exact}`,
+          "Section,Reds,,,,",
+          "Item,2021 Syrah,$55,,Red Mountain,Cocao",
+        ),
+      ),
+    );
+
+    expect(result.warnings).toEqual([]);
   });
 
   it("reports a second experience row, naming its row", () => {

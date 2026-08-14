@@ -48,6 +48,13 @@ export const WINE_COLUMN_SLOTS = 2;
  * Usable vertical space in a wine column, in points. The artboard's columns run
  * from 177 to 983 content-relative — below the tasting-experience box and above
  * the bottom lockup — so this is already net of both.
+ *
+ * This is the budget for a sheet that HAS a tasting experience, and it is only
+ * the default. With no `Experience` row both renderers start the columns right
+ * under the header divider instead, which is 107pt more room, so the caller
+ * passes that band in — see `flowWineBlocksIntoColumns`. Budgeting 806 either
+ * way broke columns early and reported an overrun that was not on the paper,
+ * which pushes staff toward the fit gate's override for nothing.
  */
 export const WINE_COLUMN_HEIGHT = theme.wine.column.height;
 
@@ -78,6 +85,48 @@ export const WINE_COLUMN_HEIGHT = theme.wine.column.height;
 const WINE_CHARS_PER_LINE = 40;
 
 /**
+ * How many characters of a wine NAME fit on one line. The name is a different
+ * face at a different size from the tasting notes — 16pt Barlow Condensed
+ * Medium, uppercased, with 1pt tracking — so it takes its own figure. The 40
+ * above is 14pt Cormorant and does not apply here.
+ *
+ * MEASURED against the same TTF the PDF embeds, set at those metrics in the
+ * item's 230pt text column: 30 characters fit on one line, 31 wrap.
+ *
+ * Nothing live reaches it — the longest name on the tab is "2020 Cabernet
+ * sauvignon" at 23 — but "2020 Cabernet Sauvignon Reserve" is exactly 31, so
+ * the wrap is one vintage away rather than hypothetical. The name sits in
+ * `itemBody`, which is the 230pt column, so it genuinely wraps; charging it a
+ * flat line height ran the estimate LOW, which is the dangerous direction. Low
+ * means the gate says the sheet fits and the printed menu runs over.
+ */
+const WINE_NAME_CHARS_PER_LINE = 30;
+
+/**
+ * Roughly how many characters of the tasting-experience box's description fit
+ * on one line. `wine-sheet.ts` warns on this figure, because the box is a fixed
+ * 76pt frame in both renderers while its copy comes from an editable
+ * spreadsheet row: a longer description does not push anything down, it
+ * overflows the border, and no budget on the sheet accounts for it.
+ *
+ * DERIVED rather than measured, and approximate. The body is 16pt Cormorant
+ * Garamond Regular across the box's inner width — 716 less its 16pt padding on
+ * both sides, so 684 — and the only calibrated point for that face is the 40
+ * characters a 14pt line holds in a 230pt column. Characters scale with the
+ * width and inversely with the size:
+ *
+ *   684 * (40 / 230) * (14 / 16) = 104.08…, so 104.
+ *
+ * The live description is 83 characters and stays quiet. Measure the box the
+ * way the 40 was measured if this ever needs to be tight.
+ */
+export const WINE_FEATURE_CHARS_PER_LINE = Math.floor(
+  (theme.wine.feature.width - 2 * theme.wine.feature.padding) *
+    (WINE_CHARS_PER_LINE / theme.wine.item.textWidth) *
+    (theme.wine.item.notesSize / theme.wine.feature.bodySize),
+);
+
+/**
  * A wine section header is always this tall, and always costs this much.
  *
  * KTD8. The GLASS and BOTTLE labels sit inside the header's own 22pt band,
@@ -96,11 +145,15 @@ const WINE_SECTION_HEADER_HEIGHT =
 /**
  * What lands in a column. There is no `section-continued` counterpart to the
  * food module's: a wine section is placed whole or not at all.
+ *
+ * And so no `blockId` beside `id`. The food module needs one because a
+ * continuation fragment carries the id of the block it came from, which is what
+ * `placementByBlock` groups on; here a section is one fragment and the two
+ * would always be the same string.
  */
 export type WineColumnFragment = {
   kind: "section";
   id: string;
-  blockId: string;
   title: string;
   wines: Wine[];
   /**
@@ -150,16 +203,22 @@ function countLines(text: string, charsPerLine: number): number {
  * line rather than to the frame — pinning the row to the artboard's height
  * drops the name from the PDF altogether. This file predicts what prints, so it
  * follows the renderer; `theme.wine.item` keeps both measurements.
+ *
+ * The name is charged per line, on its own calibration. It sits in the same
+ * 230pt column as everything else in the item, so a long enough name wraps like
+ * any other run — and a wrapping name charged as one line is an estimate that
+ * runs low, which is the one direction the fit gate cannot recover from.
  */
 export function estimateWineHeight(wine: Wine): number {
   const lines = (text: string) => Math.max(1, countLines(text, WINE_CHARS_PER_LINE));
+  const nameLines = Math.max(1, countLines(wine.name, WINE_NAME_CHARS_PER_LINE));
 
   const location = wine.location
     ? theme.wine.item.innerGap + lines(wine.location) * theme.wine.item.locationLineHeight
     : 0;
 
   return (
-    theme.wine.item.nameLineHeight +
+    nameLines * theme.wine.item.nameLineHeight +
     location +
     theme.wine.item.innerGap +
     lines(wine.tastingNotes) * theme.wine.item.notesLineHeight
@@ -191,7 +250,19 @@ export type WineFlowResult = {
   overflowColumn: WineSlotLabel | null;
 };
 
-export function flowWineBlocksIntoColumns(blocks: WineBlock[]): WineFlowResult {
+/**
+ * `columnHeight` is how tall the renderers will actually draw the columns, and
+ * it is not a constant: with no tasting-experience box to sit under, both
+ * renderers start the columns at the header divider and run to the same 983,
+ * which is 107pt more than the artboard's 806. The caller knows whether the box
+ * prints — `menus/kinds.ts` derives the taller band from the same theme
+ * expression the renderers use — so it passes the figure in rather than this
+ * module guessing. The default is the with-a-box case the artboard measures.
+ */
+export function flowWineBlocksIntoColumns(
+  blocks: WineBlock[],
+  columnHeight: number = WINE_COLUMN_HEIGHT,
+): WineFlowResult {
   const columns: WineColumnFragment[][] = Array.from({ length: WINE_COLUMN_SLOTS }, () => []);
   const used = new Array<number>(WINE_COLUMN_SLOTS).fill(0);
 
@@ -225,7 +296,7 @@ export function flowWineBlocksIntoColumns(blocks: WineBlock[]): WineFlowResult {
 
     // Whole or not at all: a section that does not fit what is left of this
     // column starts the next one instead of splitting across the break.
-    if (used[column] > 0 && used[column] + leadingGap() + height > WINE_COLUMN_HEIGHT) {
+    if (used[column] > 0 && used[column] + leadingGap() + height > columnHeight) {
       advance();
     }
 
@@ -234,12 +305,11 @@ export function flowWineBlocksIntoColumns(blocks: WineBlock[]): WineFlowResult {
     // Still too tall — either this is the last column, or the section is taller
     // than any column on the sheet. Place it anyway and say which column it
     // ruined, so the fit gate can name it and disable export.
-    if (used[column] + gap + height > WINE_COLUMN_HEIGHT) recordOverflow();
+    if (used[column] + gap + height > columnHeight) recordOverflow();
 
     columns[column].push({
       kind: "section",
       id: block.id,
-      blockId: block.id,
       title: block.title,
       wines: block.wines,
       // First in this column, so the price-column labels print here.

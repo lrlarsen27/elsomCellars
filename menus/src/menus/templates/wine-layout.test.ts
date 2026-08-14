@@ -7,7 +7,8 @@ import {
   estimateWineHeight,
   flowWineBlocksIntoColumns,
 } from "./wine-layout";
-import type { Wine, WineBlock } from "@/lib/schema";
+import { menuKindFor } from "@/menus/kinds";
+import type { TastingExperience, Wine, WineBlock, WineContent } from "@/lib/schema";
 
 /**
  * Two rules these tests pin down.
@@ -47,6 +48,24 @@ const NOTES = {
    * the first line — 40 characters — without wrapping it further.
    */
   keeper: "Collaboration with Sounders goal keeper,\nStefan Frei",
+};
+
+/**
+ * The name's own wrap boundary, which is NOT the notes' 40: a name is 16pt
+ * Barlow Condensed Medium uppercased with 1pt tracking, where a note is 14pt
+ * Cormorant. Measured in the same 230pt column against the TTF the PDF embeds —
+ * 30 fit, 31 wrap.
+ *
+ * Neither of these is on the live tab; the longest name there is "2020 Cabernet
+ * sauvignon" at 23. They are the shape the tab is one vintage away from, which
+ * is why the boundary is worth pinning before it is reached rather than after
+ * a sheet has printed over its own footer.
+ */
+const NAMES = {
+  /** 30 characters. The longest name that stays on one line. */
+  longestOneLine: "2020 Cabernet Sauvignon Estate",
+  /** 31 characters. The shortest name that wraps to two. */
+  shortestWrapping: "2020 Cabernet Sauvignon Reserve",
 };
 
 function wine(name: string, location: string, tastingNotes: string): Wine {
@@ -150,6 +169,40 @@ describe("estimating a wine's height", () => {
     const keeper = wine("The Keeper", "Columbia Valley", NOTES.keeper);
 
     expect(estimateWineHeight(keeper)).toBe(PRINTED_HEIGHT_WRAPPED);
+  });
+
+  /**
+   * The name wraps in the same 230pt column everything else in the item does,
+   * so it is charged per line like everything else. Pinned from both sides, the
+   * way the notes boundary above is: charging a wrapping name one line runs the
+   * estimate LOW, and low is the direction the fit gate cannot recover from —
+   * it says the sheet fits and the printed menu overruns.
+   */
+  it("leaves the longest one-line name on one line", () => {
+    expect(NAMES.longestOneLine).toHaveLength(30);
+
+    const long = wine(NAMES.longestOneLine, "Horse Heaven Hills", NOTES.longestOneLine);
+
+    expect(estimateWineHeight(long)).toBe(PRINTED_HEIGHT);
+  });
+
+  it("adds exactly one line for the shortest wrapping name", () => {
+    // One character longer than the name above. A calibration outside (30, 31]
+    // fails one of the two.
+    expect(NAMES.shortestWrapping).toHaveLength(31);
+
+    const wrapping = wine(NAMES.shortestWrapping, "Horse Heaven Hills", NOTES.longestOneLine);
+
+    expect(estimateWineHeight(wrapping)).toBe(PRINTED_HEIGHT + theme.wine.item.nameLineHeight);
+  });
+
+  it("charges no wine on the live tab a wrapped name", () => {
+    // The premise for the two above being about tomorrow rather than today.
+    for (const block of LIVE_BLOCKS) {
+      for (const w of block.wines) {
+        expect(w.name.length).toBeLessThanOrEqual(30);
+      }
+    }
   });
 
   it("makes a wine whose location wraps taller than one whose location fits", () => {
@@ -361,5 +414,82 @@ describe("flowing wine sections into two columns", () => {
     expect(flow.columns).toEqual([[], []]);
     expect(flow.overflow).toBe(false);
     expect(flow.overflowColumn).toBeNull();
+  });
+});
+
+// ------------------------------------------------------------- budget ---
+
+/**
+ * The columns are not always 806 tall. Both renderers hand them the artboard's
+ * 177-to-983 band only when the tasting-experience box is above them; with no
+ * `Experience` row on the tab the columns start at the header divider instead
+ * and run to the same 983, which is 107pt more.
+ *
+ * The flow does not decide that — it cannot see the box — so the budget is a
+ * parameter and the bundle in `menus/kinds.ts` supplies it. Budgeting 806 for a
+ * sheet drawn at 913 breaks the columns early and reports an overrun that is
+ * not on the paper, which is the worst thing a fit gate can do: it teaches
+ * staff that the override is the normal way to export.
+ */
+describe("the column budget the flow is given", () => {
+  /** The taller band, written the way both renderers write it. */
+  const WITHOUT_EXPERIENCE =
+    theme.wine.column.bottom - (theme.space.headerHeight + theme.wine.feature.afterHeaderDivider);
+
+  /** Taller than the artboard's column, shorter than the band with no box. */
+  const between = plainSection("Between", 12);
+
+  it("defaults to the artboard's 806, so every caller above is unaffected", () => {
+    expect(WINE_COLUMN_HEIGHT).toBe(theme.wine.column.height);
+    expect(flowWineBlocksIntoColumns([between])).toEqual(
+      flowWineBlocksIntoColumns([between], WINE_COLUMN_HEIGHT),
+    );
+  });
+
+  it("is the taller band that fits what the 806 one does not", () => {
+    // The premise: this section falls between the two budgets, so it is the
+    // case where the difference is the whole answer.
+    const height = estimateWineBlockHeight(between);
+    expect(height).toBeGreaterThan(WINE_COLUMN_HEIGHT);
+    expect(height).toBeLessThanOrEqual(WITHOUT_EXPERIENCE);
+
+    expect(flowWineBlocksIntoColumns([between]).overflow).toBe(true);
+    expect(flowWineBlocksIntoColumns([between], WITHOUT_EXPERIENCE).overflow).toBe(false);
+  });
+
+  /**
+   * Through the bundle, because the bundle is where the two can disagree: the
+   * renderers read `content.experience` to choose the band, and this is the
+   * only place the flow is told the same thing.
+   */
+  describe("as the wine bundle supplies it", () => {
+    const asContent = (experience?: TastingExperience): WineContent => ({
+      season: "Summer 2026",
+      blocks: [between],
+      wineFooter: "21+",
+      serviceCharge: "18%",
+      ...(experience ? { experience } : {}),
+    });
+
+    const EXPERIENCE: TastingExperience = {
+      id: "experience-2",
+      title: "Tasting Experience",
+      price: "$20",
+      description: "Four pours",
+    };
+
+    it("gives content with no experience block the taller band", () => {
+      const placed = menuKindFor("wine")!.place(asContent());
+
+      expect(placed.overflow).toBe(false);
+      expect(placed.overflowColumn).toBeNull();
+    });
+
+    it("keeps content that has one on the artboard's 806", () => {
+      const placed = menuKindFor("wine")!.place(asContent(EXPERIENCE));
+
+      expect(placed.overflow).toBe(true);
+      expect(placed.overflowColumn).toBe("Left");
+    });
   });
 });

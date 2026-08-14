@@ -201,7 +201,8 @@ const styles = StyleSheet.create({
   /**
    * The artboard's title band is 21 while the name sits on a 22pt line, which no
    * box model can hold at once — so the band is a floor and react-pdf's 22pt
-   * line decides, making an ordinary wine 60 where the estimator charges 59.
+   * line decides, making an ordinary wine 60 against the artboard's 59. The
+   * estimator charges the same 60, because it predicts print rather than design.
    * A fixed 21 is not the alternative: react-pdf drops a text run whose line
    * cannot fit its container's fixed height, and the name vanishes from the PDF.
    */

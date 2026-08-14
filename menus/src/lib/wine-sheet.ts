@@ -5,6 +5,7 @@ import {
   type SheetRow,
   type SheetWarning,
 } from "./sheet";
+import { WINE_FEATURE_CHARS_PER_LINE } from "@/menus/templates/wine-layout";
 import type { TastingExperience, WineBlock, WineContent } from "./schema";
 
 /**
@@ -23,7 +24,13 @@ import type { TastingExperience, WineBlock, WineContent } from "./schema";
  * - Either price may be empty. A bottle-only reserve and a glass-only pour are
  *   both ordinary entries; a wine with neither still maps, but warns.
  * - `Experience` is the only row allowed above the first section, because it
- *   prints in a box across the top rather than in a column.
+ *   prints in a box across the top rather than in a column. That box is a fixed
+ *   height and nothing flows around it, so a description too long for it warns
+ *   here — the column fit gate cannot see it.
+ *
+ * The one figure this file reads from `menus/templates/` is that box's one-line
+ * capacity. It is a rendered measurement, so it is kept beside the estimator's
+ * other calibrations rather than copied into a second file that could drift.
  */
 
 /** Named in failure messages so a row number says which of the four tabs it is. */
@@ -175,11 +182,26 @@ export function mapWineRows(
       }
       if (!name) return bad(row, "This tasting experience has no title.");
 
+      const description = clean(values.tastingNotes);
+
+      // The box is a fixed 76pt frame in both renderers, sized to hold a title
+      // band and one body line, and the copy in it is editable from the sheet.
+      // A longer description does not push the columns down — the column budget
+      // never sees it — so it silently overflows the border it is drawn in. The
+      // fit gate reads the columns and would still say the sheet fits, which is
+      // why this is said here rather than left to the preview.
+      if (description.length > WINE_FEATURE_CHARS_PER_LINE) {
+        warnings.push({
+          row,
+          problem: `"${name}" has a description longer than the one line its box holds, so it prints over the box's border. Keep it to about ${WINE_FEATURE_CHARS_PER_LINE} characters.`,
+        });
+      }
+
       experience = {
         id: `experience-${row}`,
         title: name,
         price: clean(values.bottlePrice),
-        description: clean(values.tastingNotes),
+        description,
       };
       continue;
     }
