@@ -94,13 +94,32 @@ const LIVE_BLOCKS: WineBlock[] = [
 
 const titlesIn = (fragments: { title: string }[]) => fragments.map((fragment) => fragment.title);
 
+/**
+ * What a wine actually occupies when it prints, which is the artboard's height
+ * with one substitution: the title row.
+ *
+ * The artboard draws that row as a 21pt band, but the wine name is the tallest
+ * thing in it, so react-pdf lays the row out to the name's 22pt line instead —
+ * pinning it to the band drops the name from the PDF altogether. The estimator
+ * predicts print rather than design, so it follows the renderer and every item
+ * is a point taller than the artboard measures it.
+ *
+ * Written as the substitution rather than as a literal so that changing any of
+ * the three tokens moves these with it.
+ */
+const printed = (artboardHeight: number) =>
+  artboardHeight - theme.wine.item.titleRowHeight + theme.wine.item.nameLineHeight;
+
+const PRINTED_HEIGHT = printed(theme.wine.item.height);
+const PRINTED_HEIGHT_WRAPPED = printed(theme.wine.item.heightWithWrappedNotes);
+
 // -------------------------------------------------------- calibration ---
 
 describe("estimating a wine's height", () => {
-  it("gives an ordinary wine exactly the artboard's item height", () => {
+  it("gives an ordinary wine the height it prints at", () => {
     const ordinary = wine("2021 Syrah", "Horse Heaven Hills", "Cocao, blueberry, & earth");
 
-    expect(estimateWineHeight(ordinary)).toBe(theme.wine.item.height);
+    expect(estimateWineHeight(ordinary)).toBe(PRINTED_HEIGHT);
   });
 
   it("leaves the longest known one-line note on one line", () => {
@@ -109,7 +128,7 @@ describe("estimating a wine's height", () => {
 
     const vermouth = wine("Vermouth", "Yakima Valley", NOTES.longestOneLine);
 
-    expect(estimateWineHeight(vermouth)).toBe(theme.wine.item.height);
+    expect(estimateWineHeight(vermouth)).toBe(PRINTED_HEIGHT);
   });
 
   it("adds exactly one line for the shortest known wrapping note", () => {
@@ -119,8 +138,8 @@ describe("estimating a wine's height", () => {
 
     const isabella = wine("2019 Isabella", "Columbia Valley", NOTES.shortestWrapping);
 
-    expect(estimateWineHeight(isabella)).toBe(theme.wine.item.heightWithWrappedNotes);
-    expect(estimateWineHeight(isabella)).toBe(theme.wine.item.height + theme.wine.item.notesLineHeight);
+    expect(estimateWineHeight(isabella)).toBe(PRINTED_HEIGHT_WRAPPED);
+    expect(estimateWineHeight(isabella)).toBe(PRINTED_HEIGHT + theme.wine.item.notesLineHeight);
   });
 
   it("keeps an authored line break to the two lines the artboard prints", () => {
@@ -130,7 +149,7 @@ describe("estimating a wine's height", () => {
 
     const keeper = wine("The Keeper", "Columbia Valley", NOTES.keeper);
 
-    expect(estimateWineHeight(keeper)).toBe(theme.wine.item.heightWithWrappedNotes);
+    expect(estimateWineHeight(keeper)).toBe(PRINTED_HEIGHT_WRAPPED);
   });
 
   it("makes a wine whose location wraps taller than one whose location fits", () => {
@@ -158,7 +177,7 @@ describe("estimating a wine's height", () => {
   it("still reserves the location line for a wine with no appellation", () => {
     const vermouth = wine("Vermouth", "", NOTES.longestOneLine);
 
-    expect(estimateWineHeight(vermouth)).toBe(theme.wine.item.height);
+    expect(estimateWineHeight(vermouth)).toBe(PRINTED_HEIGHT);
   });
 });
 
@@ -172,12 +191,12 @@ describe("estimating a section's height", () => {
     expect(estimateWineBlockHeight(one)).toBe(
       theme.wine.sectionHeader.ruleOffset +
         theme.wine.sectionHeader.afterSectionHeader +
-        theme.wine.item.height,
+        PRINTED_HEIGHT,
     );
     // Two more items and the two gaps between the three of them — the gap is
     // between items, never trailing the last one.
     expect(estimateWineBlockHeight(three)).toBe(
-      estimateWineBlockHeight(one) + 2 * theme.wine.item.height + 2 * theme.wine.item.betweenItems,
+      estimateWineBlockHeight(one) + 2 * PRINTED_HEIGHT + 2 * theme.wine.item.betweenItems,
     );
   });
 

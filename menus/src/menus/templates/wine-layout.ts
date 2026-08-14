@@ -141,13 +141,20 @@ function countLines(text: string, charsPerLine: number): number {
  * The location and notes rows are part of the item component whether or not
  * they carry text, so an empty one still costs its line. Vermouth is the proof:
  * it is the one live wine with no appellation, and the artboard gives it the
- * same 59pt as every other single-line wine rather than a third height.
+ * same height as every other single-line wine rather than a third one.
+ *
+ * The title row is charged at the name's line height, not at the 22pt band the
+ * artboard draws it in. The two differ by a point, and the point is real: the
+ * name is the tallest thing in that row, so react-pdf lays the row out to the
+ * line rather than to the frame — pinning the row to the artboard's height
+ * drops the name from the PDF altogether. This file predicts what prints, so it
+ * follows the renderer; `theme.wine.item` keeps both measurements.
  */
 export function estimateWineHeight(wine: Wine): number {
   const lines = (text: string) => Math.max(1, countLines(text, WINE_CHARS_PER_LINE));
 
   return (
-    theme.wine.item.titleRowHeight +
+    theme.wine.item.nameLineHeight +
     theme.wine.item.innerGap +
     lines(wine.location) * theme.wine.item.locationLineHeight +
     theme.wine.item.innerGap +
