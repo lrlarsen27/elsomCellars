@@ -8,6 +8,7 @@ import {
 } from "./sheet";
 import { FOOD_SOURCE, mapFoodRows } from "./food-sheet";
 import type { MenuContent } from "./schema";
+import { csvResponse, stubFetcher, useSheetEnv } from "./sheet-test-support";
 
 const FOOD_ALIASES = FOOD_SOURCE.aliases;
 
@@ -46,24 +47,6 @@ function map(menu: string, settings = SETTINGS_CSV): SheetResult<MenuContent> {
   return mapFoodRows(parseRows(menu), parseSettingsRows(settings));
 }
 
-/** A fetcher that answers each URL from a table, so no test touches the network. */
-function stubFetcher(byGid: Record<string, Response | Error>) {
-  return async (url: string) => {
-    const gid = new URL(url).searchParams.get("gid") ?? "";
-    const answer = byGid[gid];
-    if (answer instanceof Error) throw answer;
-    if (!answer) throw new Error(`no stub for gid ${gid}`);
-    return answer;
-  };
-}
-
-function csvResponse(body: string, init: ResponseInit = {}) {
-  return new Response(body, {
-    status: 200,
-    headers: { "content-type": "text/csv; charset=utf-8" },
-    ...init,
-  });
-}
 
 /** The food menu's real source spec, so the tests read it the way the page does. */
 const CONFIG = {
@@ -454,33 +437,22 @@ describe("the tab's structure", () => {
  * these re-imports it against the environment the test just set.
  */
 describe("resolving a menu's tabs", () => {
-  const VARIABLES = [
-    "NEXT_PUBLIC_SHEET_ID",
-    "NEXT_PUBLIC_SHEET_SETTINGS_GID",
-    "NEXT_PUBLIC_SHEET_MENU_GID",
-    "NEXT_PUBLIC_SHEET_WINE_GID",
-  ];
-
-  let saved: Record<string, string | undefined> = {};
-
-  beforeEach(() => {
-    saved = Object.fromEntries(VARIABLES.map((name) => [name, process.env[name]]));
-    process.env.NEXT_PUBLIC_SHEET_ID = "sheet-1";
-    process.env.NEXT_PUBLIC_SHEET_SETTINGS_GID = "99";
-    process.env.NEXT_PUBLIC_SHEET_MENU_GID = "0";
-    // Left unset on purpose: a second menu that nobody has wired up yet is the
-    // case this seam exists for.
-    delete process.env.NEXT_PUBLIC_SHEET_WINE_GID;
+  const env = useSheetEnv({
+    NEXT_PUBLIC_SHEET_ID: "sheet-1",
+    NEXT_PUBLIC_SHEET_SETTINGS_GID: "99",
+    NEXT_PUBLIC_SHEET_MENU_GID: "0",
+    // The wine id is left out on purpose: a menu nobody has wired up yet is
+    // the case this seam exists for.
   });
 
+  beforeEach(env.apply);
   afterEach(() => {
-    for (const name of VARIABLES) {
-      if (saved[name] === undefined) delete process.env[name];
-      else process.env[name] = saved[name];
-    }
+    env.restore();
     vi.resetModules();
   });
 
+  /** A menu reads its tab id when its module loads, so each test re-imports
+   *  against the environment it just set. */
   async function reload() {
     vi.resetModules();
     const [sheet, kinds] = await Promise.all([import("./sheet"), import("@/menus/kinds")]);

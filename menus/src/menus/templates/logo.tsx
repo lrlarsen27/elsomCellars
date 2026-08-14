@@ -25,13 +25,14 @@ export const ELSOM_VIEWBOX = "0 0 78.7908 39.782";
 export const CELLARS_VIEWBOX = "0 0 35.0272 4.05181";
 
 /**
- * The horizontal lockup's intrinsic size, straight off the artboard, so
- * callers place it without repeating the numbers. Within it the "Elsom" group
- * fills 138 x 81.0789 from the origin and "Cellars" sits at (75.41, 77.34) at
- * 61.3494 x 8.25829.
+ * The horizontal lockup's coordinate space, straight off the artboard. Within
+ * it the "Elsom" group fills 138 x 81.0789 from the origin and "Cellars" sits
+ * at (75.41, 77.34) at 61.3494 x 8.25829.
+ *
+ * Its printed size is not declared here. `theme.wine.lockup` holds that, the
+ * way it holds every other measurement the sheet draws — a second copy beside
+ * the path data would be the one that silently went stale after a re-export.
  */
-export const LOGO_HORIZONTAL_WIDTH = 138;
-export const LOGO_HORIZONTAL_HEIGHT = 85.5997;
 export const LOGO_HORIZONTAL_VIEWBOX = "0 0 138 85.5997";
 
 type MarkProps = { width: number; height: number };

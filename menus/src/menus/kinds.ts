@@ -8,7 +8,7 @@ import { flowWineBlocksIntoColumns } from "@/menus/templates/wine-layout";
 import { FOOD_SOURCE } from "@/lib/food-sheet";
 import { WINE_SOURCE } from "@/lib/wine-sheet";
 import type { MenuSource } from "@/lib/sheet";
-import type { MenuId } from "@/menus/registry";
+import { menuEntry, type MenuId } from "@/menus/registry";
 
 /**
  * A menu's bundle: everything that is this menu rather than the shell around
@@ -137,11 +137,6 @@ const KINDS: Record<MenuId, MenuKind> = {
   }),
 };
 
-/**
- * Undefined for a menu with no reader, rather than falling back to another
- * menu's — a URL for a menu nobody has built must not quietly serve the food
- * menu's content.
- */
 export function menuKindFor(menuId: string): MenuKind | undefined {
-  return Object.prototype.hasOwnProperty.call(KINDS, menuId) ? KINDS[menuId as MenuId] : undefined;
+  return menuEntry(KINDS, menuId);
 }

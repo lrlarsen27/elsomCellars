@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowBackIcon, DownloadIcon, ErrorIcon } from "@/components/Icon";
 import { loadMenuContent, sheetConfigFromEnv, type SheetFailure, type SheetWarning } from "@/lib/sheet";
@@ -116,8 +116,18 @@ export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: strin
   }
 
   const content = state.phase === "loaded" ? state.content : null;
-  // Placed by the menu's own flow, once, for the preview and the export alike.
-  const placement = kind && content ? kind.place(content) : null;
+  /*
+   * Placed by the menu's own flow, once, for the preview and the export alike.
+   *
+   * Memoised because placement walks every block and estimates a wrapped line
+   * count for every item, while most renders here have nothing to do with
+   * content — starting an export, an export failing, ticking the override.
+   * Content is what placement depends on, so content is what it recomputes on.
+   */
+  const placement = useMemo(
+    () => (kind && content ? kind.place(content) : null),
+    [kind, content],
+  );
 
   // The fit check estimates from character counts and runs about 1% generous,
   // so a hard block would occasionally strand a menu that prints fine. It

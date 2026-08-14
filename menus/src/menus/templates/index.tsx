@@ -5,7 +5,7 @@ import type { ColumnFragment } from "./layout";
 import type { WineColumnFragment } from "./wine-layout";
 import type { MenuContent, WineContent } from "@/lib/schema";
 import type { PrintableContent } from "@/menus/kinds";
-import type { MenuId } from "@/menus/registry";
+import { menuEntry, type MenuId } from "@/menus/registry";
 
 /**
  * Maps a menu id to its PDF document. Reached only through the dynamic import
@@ -54,6 +54,5 @@ export function renderMenuDocument(
   content: TemplateContent,
   columns: TemplateColumns,
 ): ReactElement | null {
-  if (!Object.prototype.hasOwnProperty.call(TEMPLATES, menuId)) return null;
-  return TEMPLATES[menuId as MenuId](content, columns);
+  return menuEntry(TEMPLATES, menuId)?.(content, columns) ?? null;
 }

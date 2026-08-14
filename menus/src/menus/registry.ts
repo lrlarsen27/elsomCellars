@@ -48,3 +48,21 @@ export const MENU_IDS: MenuId[] = MENUS.map((menu) => menu.id);
 export function getMenuMeta(id: string): MenuMeta | undefined {
   return MENUS.find((menu) => menu.id === id);
 }
+
+/**
+ * Reads a per-menu table with an id that came from the URL, so it has not been
+ * checked against anything yet.
+ *
+ * Undefined for a menu nobody has built, rather than whatever the table happens
+ * to yield — a URL for an unbuilt menu must not quietly serve another one's
+ * content. `hasOwnProperty` rather than a truthiness check so an inherited
+ * property name like `constructor` cannot resolve to something.
+ *
+ * The tables themselves are `Record<MenuId, …>`, so a menu registered without
+ * an entry is a type error rather than a miss here.
+ */
+export function menuEntry<T>(table: Record<MenuId, T>, menuId: string): T | undefined {
+  return Object.prototype.hasOwnProperty.call(table, menuId)
+    ? table[menuId as MenuId]
+    : undefined;
+}
