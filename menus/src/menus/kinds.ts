@@ -1,4 +1,5 @@
 import { FOOD_SOURCE } from "@/lib/food-sheet";
+import { WINE_SOURCE } from "@/lib/wine-sheet";
 import type { MenuSource } from "@/lib/sheet";
 
 /**
@@ -32,11 +33,13 @@ export type MenuKind<C extends PrintableContent = PrintableContent> = {
 
 const KINDS: Record<string, MenuKind> = {
   food: { source: FOOD_SOURCE },
+  wine: { source: WINE_SOURCE },
 };
 
 /**
  * Undefined for a menu with no reader, rather than falling back to another
- * menu's — the wine URL must not quietly serve food content.
+ * menu's — a URL for a menu nobody has built must not quietly serve the food
+ * menu's content.
  */
 export function menuKindFor(menuId: string): MenuKind | undefined {
   return Object.prototype.hasOwnProperty.call(KINDS, menuId) ? KINDS[menuId] : undefined;

@@ -505,7 +505,9 @@ describe("resolving a menu's tabs", () => {
   it("has no bundle for a menu the site cannot read, rather than answering with the food menu's", async () => {
     const { menuKindFor } = await reload();
 
-    expect(menuKindFor("wine")).toBeUndefined();
+    // Wine is a registered bundle now, so the unreadable case is an id nobody
+    // has built. It must not resolve to the food menu's reader.
+    expect(menuKindFor("dessert")).toBeUndefined();
     expect(menuKindFor("food")).toBeDefined();
   });
 
