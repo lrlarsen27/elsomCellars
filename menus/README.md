@@ -10,8 +10,12 @@ Part of the [Elsom Cellars](../README.md) repo.
 > embedded and subsetted, the back-page watermark with its alpha mask, and
 > column placement matching the artboard column by column.
 >
-> Not done yet: the wine menu (designed and written, no template — see
-> [Adding the wine menu](#adding-the-wine-menu)), and deployment.
+> The wine menu is wired up beside it. It reads its own tab and draws one 11×17
+> side: the tasting experience across the top, two columns, `GLASS` and `BOTTLE`
+> on the first section in each, and the centred lockup above a two-line footer.
+> It exports through the same handler the food menu does.
+>
+> Not done yet: deployment.
 
 ## The one idea
 
@@ -161,9 +165,13 @@ id of each tab the app reads:
 
 - `NEXT_PUBLIC_SHEET_ID` — from the sheet's URL, between `/d/` and `/edit`.
 - `NEXT_PUBLIC_SHEET_MENU_GID` — the `gid=` of the food menu tab.
+- `NEXT_PUBLIC_SHEET_WINE_GID` — the `gid=` of the wine menu tab.
 - `NEXT_PUBLIC_SHEET_SETTINGS_GID` — the `gid=` of the settings tab.
 
-All three are **public by construction**: they ship inside the page's
+Each menu reads its own tab from its own variable, so leaving one unset fails
+only that menu's page.
+
+All four are **public by construction**: they ship inside the page's
 JavaScript, and the spreadsheet is readable by anyone with the link. Keep menu
 content only in that spreadsheet. Full setup instructions, including the sheet's
 column contract and the card to hand the winery, are in
@@ -171,7 +179,7 @@ column contract and the card to hand the winery, are in
 
 ```bash
 npm run dev     # http://localhost:3000
-npm test        # the sheet parser
+npm test        # the sheet parsers, the column flows, and the import rules
 npm run build   # static export into out/
 ```
 
@@ -179,18 +187,26 @@ npm run build   # static export into out/
 
 | Path | What it does |
 | --- | --- |
-| `src/lib/sheet.ts` | Reads the spreadsheet and maps it to menu content. |
+| `src/lib/sheet.ts` | The shared reader: fetching, CSV parsing, the structural checks, the failure taxonomy. Names no menu. |
+| `src/lib/food-sheet.ts` | The food tab's column names, row grammar and mapper. |
+| `src/lib/wine-sheet.ts` | The same for the wine tab. |
 | `src/lib/schema.ts` | The content model. Adding a field here makes it editable. |
 | `src/lib/seed.ts` | The original artboard copy. Kept as the reference the sheet was filled from. |
-| `src/menus/templates/theme.ts` | Type, spacing, color, page size, read from Figma. |
+| `src/menus/registry.ts` | The menu list the home page and the route read. Metadata only, and the id union everything else is total over. |
+| `src/menus/kinds.ts` | Each menu's bundle: where to read, how to place, what to draw, what an overrun means. |
+| `src/menus/templates/index.tsx` | Menu id to PDF document. Reached only by the export handler's dynamic import. |
+| `src/menus/templates/theme.ts` | Type, spacing, color, page size, read from Figma. Wine values in their own namespace. |
 | `src/menus/templates/FoodMenu.tsx` | The two-sided tabloid layout. |
-| `src/menus/templates/layout.ts` | Decides which column each block lands in. |
-| `src/menus/templates/logo.tsx` | Generated vector logo — don't hand-edit. |
+| `src/menus/templates/WineMenu.tsx` | The one-sided wine layout. |
+| `src/menus/templates/layout.ts` | Decides which of the food menu's four columns each block lands in. |
+| `src/menus/templates/wine-layout.ts` | The same for the wine card's two, and which sections carry the price labels. |
+| `src/menus/templates/logo.tsx` | Generated vector logos — don't hand-edit. |
 | `src/menus/templates/fonts.ts` | Font registration and the fallback switch. |
-| `src/menus/templates/legend.ts` | The footer legend, shared by the PDF and the preview. |
-| `src/menus/templates/assets/` | The Figma SVG exports the logo was generated from. |
-| `src/components/Editor.tsx` | The page. Imports the PDF engine only on export. |
-| `src/components/MenuPreview.tsx` | The on-screen sheet. |
+| `src/menus/templates/legend.ts` | The food menu's footer legend, shared by its PDF and its preview. |
+| `src/menus/templates/assets/` | The Figma SVG exports the logos were generated from. |
+| `src/components/Editor.tsx` | The page shell, menu-agnostic. Imports the PDF engine only on export. |
+| `src/components/MenuPreview.tsx` | The on-screen food sheet. |
+| `src/components/WinePreview.tsx` | The on-screen wine sheet. |
 | `src/app/globals.css` | The web UI's design system — Material 3 tokens and components. |
 | `src/components/Icon.tsx` | The icon set, drawn on Material's 24dp grid. |
 | `public/fonts/` | The embedded TTFs, with their OFL licences. |
@@ -246,22 +262,51 @@ script; `npm.cmd` is a batch file and execution policy doesn't apply to it.
 Git Bash and `cmd.exe` are unaffected too. Nothing needs to be changed
 system-wide.
 
-## Adding the wine menu
+## Adding a menu
 
-The wine menu is designed (`29:5658`) and its content is written, on its own tab
-in the spreadsheet. What's missing is the code.
+The wine menu was the second one, and adding it is what turned the shared parts
+into seams. A menu is **not** a variation on another one — the wine item carries
+two prices, an appellation and tasting notes where the food item carries one
+price, dietary tags and a pairing, so it got its own content model rather than
+extra optional fields on `MenuItem`. Expect a third menu to do the same.
 
-It is **not** a variation on the food menu. Its content shape differs — two
-prices rather than one, an AVA location, and tasting notes instead of a
-description — so it needs its own content model alongside `MenuItem`, not extra
-optional fields on it.
+What a new menu owns:
 
-1. Extend `src/lib/schema.ts` with the wine content shape.
-2. Teach `src/lib/sheet.ts` to map the wine tab's columns.
-3. Write the template in `src/menus/templates/` and register it in
-   `templates/index.tsx`.
-4. Add its metadata to `src/menus/registry.ts` and its tab id to
-   `.env.local.example`.
+1. **Its rows** — a mapper and a source spec in `src/lib/<menu>-sheet.ts`,
+   beside `food-sheet.ts` and `wine-sheet.ts`: the tab's column aliases, the
+   columns it cannot do without, the settings keys it prints, and how a row
+   becomes content. `src/lib/sheet.ts` is shared and names no menu; don't teach
+   it this one. A shared alias table would make each menu's column names
+   silently valid on the other's tab.
+2. **Its content shape**, in `src/lib/schema.ts`, if no existing one fits.
+3. **Its column flow**, in `src/menus/templates/`. Its own module with its own
+   slot count, column budget and characters-per-line: `layout.ts` is calibrated
+   to the food sheet and `wine-layout.ts` to the wine card, and neither
+   generalises.
+4. **Its two renderers** — a template in `src/menus/templates/` and a preview in
+   `src/components/`, both reading the same values from `theme.ts` so they
+   cannot disagree.
+5. **Its three registrations** — a row in `src/menus/registry.ts`, a bundle in
+   `src/menus/kinds.ts`, and a template in `src/menus/templates/index.tsx`. The
+   last two are typed as total records over the registry's id union, so
+   forgetting one fails the type check rather than reaching the winery.
+
+Then its tab id in `.env.local` and `.env.local.example`, and its tab in the
+spreadsheet — see [`docs/sheet-setup.md`](docs/sheet-setup.md).
+
+Three rules hold the seams open, and breaking one is quiet rather than loud:
+
+- **`registry.ts` is read by a server component**, so it carries metadata and
+  nothing else — no mapper, no flow, no client component.
+- **No bundle may name a template.** The PDF engine is reachable only through
+  the dynamic import inside the export handler; a template reference in
+  `kinds.ts` would pull it into the prerendered graph.
+- **`Editor.tsx` is menu-agnostic.** It holds the load states, the warnings, the
+  fit gate and the export, and asks a menu's content for nothing but a season.
+  Anything that differs per menu belongs on the bundle — including the fit
+  gate's advice, which is bundle data for exactly this reason.
+
+`src/menus/kinds.test.ts` asserts the first two from source text.
 
 ## Deploying
 

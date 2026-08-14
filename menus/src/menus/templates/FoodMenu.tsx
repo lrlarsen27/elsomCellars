@@ -3,7 +3,6 @@ import { theme } from "./theme";
 import { fonts } from "./fonts";
 import { ElsomWordmark, CellarsMark } from "./logo";
 import { LEGEND } from "./legend";
-import { flowBlocksIntoColumns } from "./layout";
 import type { ColumnFragment } from "./layout";
 import { DIETARY_TAG_LABELS } from "@/lib/schema";
 import type { MenuContent, MenuItem } from "@/lib/schema";
@@ -16,6 +15,10 @@ import type { MenuContent, MenuItem } from "@/lib/schema";
  * Content is not placed by hand — `layout.ts` decides which of the four column
  * slots each block lands in, based on how much text there is. See that file for
  * how the estimate works and where it deviates from the artboard.
+ *
+ * That flow is run by the page and handed in, not called here: the fit gate the
+ * page shows and the file it exports read the same result. Every template in
+ * this folder takes its placement the same way.
  */
 
 const styles = StyleSheet.create({
@@ -320,9 +323,14 @@ function Side({
   );
 }
 
-export function FoodMenu({ content }: { content: MenuContent }) {
-  const { columns } = flowBlocksIntoColumns(content.blocks);
-
+/** `columns` comes from `flowBlocksIntoColumns`: four slots, front then back. */
+export function FoodMenu({
+  content,
+  columns,
+}: {
+  content: MenuContent;
+  columns: ColumnFragment[][];
+}) {
   return (
     <Document title={`Elsom Cellars — ${content.season}`}>
       <Side content={content} left={columns[0]} right={columns[1]} />

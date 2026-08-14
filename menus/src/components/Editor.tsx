@@ -1,27 +1,39 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { MenuPreview } from "./MenuPreview";
-import { flowBlocksIntoColumns } from "@/menus/templates/layout";
 import { ArrowBackIcon, DownloadIcon, ErrorIcon } from "@/components/Icon";
 import { loadMenuContent, sheetConfigFromEnv, type SheetFailure, type SheetWarning } from "@/lib/sheet";
-import type { MenuContent } from "@/lib/schema";
+import { menuKindFor, type PrintableContent } from "@/menus/kinds";
 
 /**
  * Preview and export. The menu's content lives in a spreadsheet, so there is
  * nothing to edit here — this page reads the sheet, draws the sheet as it will
  * print, and exports the PDF.
  *
+ * This file is menu-agnostic and stays that way. It knows the load states, the
+ * warnings, the fit gate and the export handler; it knows nothing about food or
+ * wine. Everything per menu — where to read, how to place, what to draw, what
+ * an overrun means — arrives on the bundle in `menus/kinds.ts`, and the only
+ * thing the shell asks of any menu's content is that it carries a season.
+ *
  * Everything runs in the browser. The page itself is a static file.
  */
 
 type LoadState =
   | { phase: "loading" }
-  | { phase: "loaded"; content: MenuContent; warnings: SheetWarning[] }
+  | { phase: "loaded"; content: PrintableContent; warnings: SheetWarning[] }
   | { phase: "failed"; failure: SheetFailure };
 
 export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: string }) {
+  /*
+   * The shell selects its own bundle from the menu id, rather than being handed
+   * one: the route is a server component, and a server component cannot pass a
+   * function across the client boundary. The bundle it looks up is a module
+   * constant, so this is stable across renders and the load effect runs once.
+   */
+  const kind = menuKindFor(menuId);
+
   // The build prerenders this component, so the first render must not depend on
   // anything only the browser knows. Loading is the honest initial state.
   const [state, setState] = useState<LoadState>({ phase: "loading" });
@@ -31,33 +43,46 @@ export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: strin
   // override rather than leaving it armed against content it was never for.
   const [exportAnyway, setExportAnyway] = useState(false);
 
+  // Resolution happens per menu, so a menu that was never wired up fails on its
+  // own page and leaves every other menu reading exactly as before.
   const load = useCallback(() => {
-    const config = sheetConfigFromEnv();
-    if (!config) {
+    if (!kind) {
       setState({
         phase: "failed",
         failure: {
-          kind: "unreachable",
-          detail: "This site was built without a spreadsheet to read. See menus/README.md.",
+          kind: "unconfigured",
+          menu: menuId,
+          detail: "This site has no reader for that menu.",
         },
       });
       return;
     }
 
+    const resolved = sheetConfigFromEnv(kind.source);
+    if (!resolved.ok) {
+      setState({ phase: "failed", failure: resolved.failure });
+      return;
+    }
+
     setState({ phase: "loading" });
     setExportAnyway(false);
-    void loadMenuContent(config).then((result) => {
+    void loadMenuContent(resolved.config).then((result) => {
       setState(
         result.ok
           ? { phase: "loaded", content: result.content, warnings: result.warnings }
           : { phase: "failed", failure: result.failure },
       );
     });
-  }, []);
+  }, [kind, menuId]);
 
   useEffect(load, [load]);
 
-  async function handleDownload(content: MenuContent) {
+  async function handleDownload(content: PrintableContent) {
+    // The export draws the same placement the fit gate below was computed from,
+    // rather than the template running the flow again. Content and placement
+    // arrive together, so this is unreachable with content on screen.
+    if (!placement) return;
+
     setDownloading(true);
     setDownloadError(null);
 
@@ -70,7 +95,7 @@ export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: strin
         import("@/menus/templates"),
       ]);
 
-      const document = renderMenuDocument(menuId, content);
+      const document = renderMenuDocument(menuId, content, placement.columns);
       if (!document) {
         setDownloadError("No template for this menu.");
         return;
@@ -91,12 +116,23 @@ export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: strin
   }
 
   const content = state.phase === "loaded" ? state.content : null;
-  const flow = content ? flowBlocksIntoColumns(content.blocks) : null;
+  /*
+   * Placed by the menu's own flow, once, for the preview and the export alike.
+   *
+   * Memoised because placement walks every block and estimates a wrapped line
+   * count for every item, while most renders here have nothing to do with
+   * content — starting an export, an export failing, ticking the override.
+   * Content is what placement depends on, so content is what it recomputes on.
+   */
+  const placement = useMemo(
+    () => (kind && content ? kind.place(content) : null),
+    [kind, content],
+  );
 
   // The fit check estimates from character counts and runs about 1% generous,
   // so a hard block would occasionally strand a menu that prints fine. It
   // blocks by default and lets someone say otherwise on purpose.
-  const blockedByFit = Boolean(flow?.overflow) && !exportAnyway;
+  const blockedByFit = Boolean(placement?.overflow) && !exportAnyway;
 
   return (
     <div style={{ minHeight: "100vh" }}>
@@ -127,17 +163,16 @@ export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: strin
 
         {state.phase === "failed" ? <Failure failure={state.failure} onRetry={load} /> : null}
 
-        {state.phase === "loaded" && flow ? (
+        {state.phase === "loaded" && placement && kind ? (
           <>
             {state.warnings.length > 0 ? <Warnings warnings={state.warnings} /> : null}
 
-            {flow.overflow ? (
+            {placement.overflow ? (
               <Notice tone="error">
                 <span>
                   This is more than fits on the sheet — the{" "}
-                  <strong>{(flow.overflowColumn ?? "last").toLowerCase()}</strong> column runs past
-                  the bottom of the page. Shorten something in the spreadsheet, or move a section
-                  up so it lands in an earlier column.
+                  <strong>{(placement.overflowColumn ?? "last").toLowerCase()}</strong> column runs
+                  past the bottom of the page. {kind.overflowAdvice}
                   <label
                     style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}
                     className="md-body-medium"
@@ -160,7 +195,9 @@ export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: strin
               change it, then reload this page.
             </p>
 
-            <MenuPreview content={state.content} columns={flow.columns} />
+            {/* The preview is a function returning an element, not a component
+                reference, so this file never names a menu's prop types. */}
+            {placement.preview()}
           </>
         ) : null}
       </main>
@@ -178,6 +215,12 @@ function Loading() {
 }
 
 function Failure({ failure, onRetry }: { failure: SheetFailure; onRetry: () => void }) {
+  // No retry: the tab ids are baked in at build time, so reading again reads
+  // the same nothing. Offering the button would only look like it might help.
+  if (failure.kind === "unconfigured") {
+    return <Notice tone="error">This menu isn&apos;t set up to read yet. {failure.detail}</Notice>;
+  }
+
   if (failure.kind === "unreachable") {
     return (
       <Notice tone="error" action={{ label: "Try again", onClick: onRetry }}>
@@ -194,9 +237,17 @@ function Failure({ failure, onRetry }: { failure: SheetFailure; onRetry: () => v
     );
   }
 
+  if (failure.kind === "setting") {
+    return (
+      <Notice tone="error" action={{ label: "Try again", onClick: onRetry }}>
+        {failure.problem}
+      </Notice>
+    );
+  }
+
   return (
     <Notice tone="error" action={{ label: "Try again", onClick: onRetry }}>
-      Row {failure.row} of the spreadsheet couldn&apos;t be read. {failure.problem}
+      Row {failure.row} of the {failure.tab} tab couldn&apos;t be read. {failure.problem}
     </Notice>
   );
 }

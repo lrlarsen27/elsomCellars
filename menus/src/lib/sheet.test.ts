@@ -1,7 +1,19 @@
-import { describe, it, expect } from "vitest";
-import { loadMenuContent, mapRows, exportUrl, __testing, type SheetResult } from "./sheet";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import {
+  exportUrl,
+  loadMenuContent,
+  parseTab,
+  SETTINGS_ALIASES,
+  type SheetResult,
+} from "./sheet";
+import { FOOD_SOURCE, mapFoodRows } from "./food-sheet";
+import type { MenuContent } from "./schema";
+import { csvResponse, stubFetcher, useSheetEnv } from "./sheet-test-support";
 
-const { parseRows } = __testing;
+const FOOD_ALIASES = FOOD_SOURCE.aliases;
+
+const parseRows = (csv: string) => parseTab(csv, FOOD_ALIASES).rows;
+const parseSettingsRows = (csv: string) => parseTab(csv, SETTINGS_ALIASES).rows;
 
 /**
  * Fixtures use CRLF and the sheet's real header spelling — capitals, the
@@ -21,40 +33,28 @@ const SETTINGS_CSV = [
   "serviceCharge,An 18% service charge is added to all dine-in checks.",
 ].join("\r\n");
 
-function ok(result: SheetResult) {
+function ok(result: SheetResult<MenuContent>) {
   if (!result.ok) throw new Error(`expected success, got ${JSON.stringify(result.failure)}`);
   return result;
 }
 
-function failed(result: SheetResult) {
+function failed(result: SheetResult<MenuContent>) {
   if (result.ok) throw new Error("expected failure, got success");
   return result;
 }
 
-function map(menu: string, settings = SETTINGS_CSV): SheetResult {
-  return mapRows(parseRows(menu), parseRows(settings));
+function map(menu: string, settings = SETTINGS_CSV): SheetResult<MenuContent> {
+  return mapFoodRows(parseRows(menu), parseSettingsRows(settings));
 }
 
-/** A fetcher that answers each URL from a table, so no test touches the network. */
-function stubFetcher(byGid: Record<string, Response | Error>) {
-  return async (url: string) => {
-    const gid = new URL(url).searchParams.get("gid") ?? "";
-    const answer = byGid[gid];
-    if (answer instanceof Error) throw answer;
-    if (!answer) throw new Error(`no stub for gid ${gid}`);
-    return answer;
-  };
-}
 
-function csvResponse(body: string, init: ResponseInit = {}) {
-  return new Response(body, {
-    status: 200,
-    headers: { "content-type": "text/csv; charset=utf-8" },
-    ...init,
-  });
-}
-
-const CONFIG = { sheetId: "sheet-1", menuGid: "0", settingsGid: "99" };
+/** The food menu's real source spec, so the tests read it the way the page does. */
+const CONFIG = {
+  sheetId: "sheet-1",
+  menuGid: "0",
+  settingsGid: "99",
+  source: FOOD_SOURCE,
+};
 
 // ------------------------------------------------------------- shape ---
 
@@ -325,6 +325,222 @@ describe("loading", () => {
       ),
     );
     expect(result.failure).toEqual({ kind: "empty" });
+  });
+});
+
+// ----------------------------------------------------------- structure ---
+
+/**
+ * Two failures that degrade every row at once while reporting nothing: a column
+ * the mapper reads that row 1 does not carry, and a settings key the menu
+ * prints that the Settings tab does not hold. Both are checked before any
+ * content row is read, so the message points at the header or the key rather
+ * than at a dish.
+ */
+describe("the tab's structure", () => {
+  it("reports a column the mapper reads that the header row does not carry", async () => {
+    const csv = [
+      "Type,Name,Price,Description,Allergy Tag, Pairing",
+      "Section,Plates,,,,",
+      "Item,Toast,$14,Ricotta,GF,Pairs with 2024 Albarino",
+    ].join("\r\n");
+
+    const result = failed(
+      await loadMenuContent(
+        CONFIG,
+        stubFetcher({ "0": csvResponse(csv), "99": csvResponse(SETTINGS_CSV) }),
+      ),
+    );
+
+    expect(result.failure).toMatchObject({ kind: "row", row: 1 });
+    expect(result.failure.kind === "row" && result.failure.problem).toContain("Add on");
+  });
+
+  it("reports a required settings key the Settings tab does not carry", async () => {
+    const settings = ["key,value", "season,Summer 2026", "disclaimer,*Consuming raw"].join("\r\n");
+
+    const result = failed(
+      await loadMenuContent(
+        CONFIG,
+        stubFetcher({
+          "0": csvResponse(menuCsv("Section,Plates,,,,,", "Item,Toast,$14,,,,")),
+          "99": csvResponse(settings),
+        }),
+      ),
+    );
+
+    expect(result.failure).toMatchObject({
+      kind: "setting",
+      tab: "Settings",
+      key: "serviceCharge",
+    });
+  });
+
+  it("reports a required settings key that is present with a blank value", async () => {
+    // The row exists, so a key check alone would pass it — and the menu would
+    // print the empty line the check exists to stop. Same failure shape as the
+    // absent-key case above, deliberately: to a reader the two are one problem.
+    const settings = [
+      "key,value",
+      "season,Summer 2026",
+      "disclaimer,*Consuming raw",
+      "serviceCharge, ",
+    ].join("\r\n");
+
+    const result = failed(
+      await loadMenuContent(
+        CONFIG,
+        stubFetcher({
+          "0": csvResponse(menuCsv("Section,Plates,,,,,", "Item,Toast,$14,,,,")),
+          "99": csvResponse(settings),
+        }),
+      ),
+    );
+
+    expect(result.failure).toMatchObject({
+      kind: "setting",
+      tab: "Settings",
+      key: "serviceCharge",
+    });
+  });
+
+  it("accepts a header row written for people, with capitals, stray spaces and synonyms", async () => {
+    const csv = [
+      " TYPE ,name,  Price ,DESCRIPTION,Tags, add_on ,Pairing",
+      "Section,Plates,,,,,",
+      "Item,Toast,$14,Ricotta,GF,,",
+    ].join("\r\n");
+
+    const result = ok(
+      await loadMenuContent(
+        CONFIG,
+        stubFetcher({ "0": csvResponse(csv), "99": csvResponse(SETTINGS_CSV) }),
+      ),
+    );
+
+    const section = result.content.blocks[0];
+    expect(section.kind === "section" && section.items[0]).toMatchObject({
+      name: "Toast",
+      price: "$14",
+    });
+  });
+
+  it("leaves a settings key this menu does not require as an empty string", async () => {
+    const result = ok(
+      await loadMenuContent(
+        { ...CONFIG, source: { ...CONFIG.source, requiredSettings: ["season"] } },
+        stubFetcher({
+          "0": csvResponse(menuCsv("Section,Plates,,,,,", "Item,Toast,$14,,,,")),
+          "99": csvResponse("key,value\r\nseason,Fall 2026"),
+        }),
+      ),
+    );
+
+    expect(result.content.season).toBe("Fall 2026");
+    expect(result.content.disclaimer).toBe("");
+    expect(result.content.serviceCharge).toBe("");
+  });
+
+  it("names the tab a bad row came from, not only its number", async () => {
+    const result = failed(
+      await loadMenuContent(
+        CONFIG,
+        stubFetcher({
+          "0": csvResponse(menuCsv("Item,Orphan,$8,,,,")),
+          "99": csvResponse(SETTINGS_CSV),
+        }),
+      ),
+    );
+
+    expect(result.failure).toMatchObject({ kind: "row", tab: "Food Menu", row: 2 });
+  });
+});
+
+// ------------------------------------------------------------- config ---
+
+/**
+ * Resolution is per menu, and the point of these is what does *not* happen: an
+ * unset tab id fails the menu it belongs to and leaves every other menu
+ * resolving. The bundle reads its variable when the module loads, so each of
+ * these re-imports it against the environment the test just set.
+ */
+describe("resolving a menu's tabs", () => {
+  const env = useSheetEnv({
+    NEXT_PUBLIC_SHEET_ID: "sheet-1",
+    NEXT_PUBLIC_SHEET_SETTINGS_GID: "99",
+    NEXT_PUBLIC_SHEET_MENU_GID: "0",
+    // The wine id is left out on purpose: a menu nobody has wired up yet is
+    // the case this seam exists for.
+  });
+
+  beforeEach(env.apply);
+  afterEach(() => {
+    env.restore();
+    vi.resetModules();
+  });
+
+  /** A menu reads its tab id when its module loads, so each test re-imports
+   *  against the environment it just set. */
+  async function reload() {
+    vi.resetModules();
+    const [sheet, kinds] = await Promise.all([import("./sheet"), import("@/menus/kinds")]);
+    return { ...sheet, ...kinds };
+  }
+
+  it("resolves the food menu while no other menu's tab id is set", async () => {
+    const { menuKindFor, sheetConfigFromEnv } = await reload();
+
+    const kind = menuKindFor("food");
+    expect(kind).toBeDefined();
+
+    const resolved = sheetConfigFromEnv(kind!.source);
+    expect(resolved.ok).toBe(true);
+    expect(resolved.ok && resolved.config).toMatchObject({
+      sheetId: "sheet-1",
+      menuGid: "0",
+      settingsGid: "99",
+    });
+  });
+
+  it("has no bundle for a menu the site cannot read, rather than answering with the food menu's", async () => {
+    const { menuKindFor } = await reload();
+
+    // Wine is a registered bundle now, so the unreadable case is an id nobody
+    // has built. It must not resolve to the food menu's reader.
+    expect(menuKindFor("dessert")).toBeUndefined();
+
+    // The two ids that make `menuEntry`'s `hasOwnProperty` guard the reason
+    // this passes rather than an incidental detail: every object inherits both,
+    // so a plain `table[menuId]` lookup would hand the route a function here
+    // and the shell would try to place a menu made of `Object.prototype`.
+    expect(menuKindFor("constructor")).toBeUndefined();
+    expect(menuKindFor("toString")).toBeUndefined();
+
+    expect(menuKindFor("food")).toBeDefined();
+  });
+
+  it("describes the menu whose tab id is unset, naming it and its variable", async () => {
+    delete process.env.NEXT_PUBLIC_SHEET_MENU_GID;
+    const { menuKindFor, sheetConfigFromEnv } = await reload();
+
+    const resolved = sheetConfigFromEnv(menuKindFor("food")!.source);
+
+    expect(resolved.ok).toBe(false);
+    expect(!resolved.ok && resolved.failure).toMatchObject({ kind: "unconfigured", menu: "food" });
+    expect(
+      !resolved.ok && resolved.failure.kind === "unconfigured" && resolved.failure.detail,
+    ).toContain("NEXT_PUBLIC_SHEET_MENU_GID");
+  });
+
+  it("calls a build with no spreadsheet unconfigured rather than unreachable", async () => {
+    delete process.env.NEXT_PUBLIC_SHEET_ID;
+    const { menuKindFor, sheetConfigFromEnv } = await reload();
+
+    const resolved = sheetConfigFromEnv(menuKindFor("food")!.source);
+
+    // Not `unreachable`: that branch offers a retry, and retrying cannot change
+    // a value that was baked in at build time.
+    expect(!resolved.ok && resolved.failure.kind).toBe("unconfigured");
   });
 });
 

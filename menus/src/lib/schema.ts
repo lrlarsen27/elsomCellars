@@ -76,6 +76,72 @@ export type MenuContent = {
 
 export type MenuStore = Record<string, MenuContent>;
 
+// --------------------------------------------------------------- wine ---
+
+/**
+ * The wine menu's content, modelled on the Elsom Wine Menu Figma artboard
+ * (node `29:5658`).
+ *
+ * A second model rather than a widening of the food one. A wine carries two
+ * prices and an appellation and no dietary tags, and the food menu is in print
+ * — bending `MenuItem` to hold both would put optional fields on a type whose
+ * every consumer is calibrated to the food card.
+ *
+ * The same rule holds as above: every field is a plain string, and there is no
+ * font, size, colour, column or page field anywhere in here. Which column a
+ * wine section prints in is computed from how much content there is, not stored.
+ */
+export type Wine = {
+  id: string;
+  name: string;
+  /**
+   * Free text, so "$30" survives exactly as typed. Empty for a wine sold only
+   * by the glass — the bottle column simply prints nothing.
+   */
+  bottlePrice: string;
+  /** Empty for a wine sold only by the bottle. */
+  glassPrice: string;
+  /** The appellation, e.g. "Horse Heaven Hills". Its own line under the name. */
+  location: string;
+  /** Newlines are preserved when rendered. */
+  tastingNotes: string;
+};
+
+/**
+ * The bordered box above the columns. Content rather than template copy, so the
+ * winery can change a $20 pour price without a designer.
+ */
+export type TastingExperience = {
+  id: string;
+  title: string;
+  /** Free text, like a wine's. */
+  price: string;
+  description: string;
+};
+
+/**
+ * One kind so far, and the discriminant is carried anyway: it keeps the wine
+ * blocks readable the way the food blocks are, and a second kind is an added
+ * member rather than a reshaping of every consumer.
+ */
+export type WineBlock = { kind: "section"; id: string; title: string; wines: Wine[] };
+
+export type WineContent = {
+  /** Header, right side. Shared with the food menu. e.g. "Summer 2026" */
+  season: string;
+  blocks: WineBlock[];
+  /**
+   * Absent when the tab carries no `Experience` row. Held beside the blocks
+   * rather than in them because it prints in a box across the top rather than
+   * flowing into a column.
+   */
+  experience?: TastingExperience;
+  /** Footer line 1 — the 21+ notice. The wine menu's own, not the food disclaimer. */
+  wineFooter: string;
+  /** Footer line 2 — the service charge notice. Shared with the food menu. */
+  serviceCharge: string;
+};
+
 /** Ids only need to be unique within one menu, and are never shown to users. */
 export function newId(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
@@ -156,5 +222,60 @@ export function isMenuContent(value: unknown): value is MenuContent {
     typeof menu.serviceCharge === "string" &&
     Array.isArray(menu.blocks) &&
     menu.blocks.every(isMenuBlock)
+  );
+}
+
+function isWine(value: unknown): value is Wine {
+  if (typeof value !== "object" || value === null) return false;
+  const wine = value as Record<string, unknown>;
+  return (
+    typeof wine.id === "string" &&
+    typeof wine.name === "string" &&
+    typeof wine.bottlePrice === "string" &&
+    typeof wine.glassPrice === "string" &&
+    typeof wine.location === "string" &&
+    typeof wine.tastingNotes === "string"
+  );
+}
+
+function isTastingExperience(value: unknown): value is TastingExperience {
+  if (typeof value !== "object" || value === null) return false;
+  const experience = value as Record<string, unknown>;
+  return (
+    typeof experience.id === "string" &&
+    typeof experience.title === "string" &&
+    typeof experience.price === "string" &&
+    typeof experience.description === "string"
+  );
+}
+
+function isWineBlock(value: unknown): value is WineBlock {
+  if (typeof value !== "object" || value === null) return false;
+  const block = value as Record<string, unknown>;
+  return (
+    block.kind === "section" &&
+    typeof block.id === "string" &&
+    typeof block.title === "string" &&
+    Array.isArray(block.wines) &&
+    block.wines.every(isWine)
+  );
+}
+
+/**
+ * The wine menu's counterpart to `isMenuContent`, rejecting rather than
+ * coercing for the same reason. An absent tasting experience is valid; one that
+ * is present and off-shape is not.
+ */
+export function isWineContent(value: unknown): value is WineContent {
+  if (typeof value !== "object" || value === null) return false;
+  const menu = value as Record<string, unknown>;
+
+  return (
+    typeof menu.season === "string" &&
+    typeof menu.wineFooter === "string" &&
+    typeof menu.serviceCharge === "string" &&
+    (menu.experience === undefined || isTastingExperience(menu.experience)) &&
+    Array.isArray(menu.blocks) &&
+    menu.blocks.every(isWineBlock)
   );
 }
