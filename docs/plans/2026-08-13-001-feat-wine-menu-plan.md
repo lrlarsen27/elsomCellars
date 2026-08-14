@@ -429,7 +429,7 @@ Two consequences of that order are worth stating. U1 changes code the live food 
 
 **Test scenarios:**
 - Covers AE1. Given four sections across two columns, exactly the first fragment in each column is marked label-bearing.
-- The current wine content places its four sections as the artboard does — three in the left column, one in the right.
+- The current wine content places its four sections as the artboard does — Whites & Rosé and Reds in the left column, Blends and Specialty in the right.
 - A tasting note of the measured one-line length does not add a second line to its item's height.
 - A tasting note just past that length adds exactly one line.
 - A section that fits in a whole column is never split across the break.
