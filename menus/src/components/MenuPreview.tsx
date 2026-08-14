@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { theme } from "@/menus/templates/theme";
 import { LEGEND } from "@/menus/templates/legend";
+import { face } from "@/menus/templates/faces";
 import { ElsomLogo } from "./Logo";
 import { DIETARY_TAG_LABELS } from "@/lib/schema";
 import type { ColumnFragment } from "@/menus/templates/layout";
@@ -41,22 +42,6 @@ import type { MenuContent, MenuItem } from "@/lib/schema";
 /** The sheet is drawn at true point size, then scaled to whatever fits. */
 const SHEET_WIDTH = theme.page.width;
 const SHEET_HEIGHT = theme.page.height;
-
-/**
- * The five faces, mapped to the web families registered in `globals.css`.
- * `theme.font` names react-pdf's registered families, which aren't CSS family
- * names — this is the translation between the two.
- */
-const BARLOW = '"Barlow Condensed", "Roboto Condensed", sans-serif';
-const CORMORANT = '"Cormorant Garamond", Georgia, serif';
-
-const face = {
-  headingRegular: { fontFamily: BARLOW, fontWeight: 400 },
-  headingMedium: { fontFamily: BARLOW, fontWeight: 500 },
-  body: { fontFamily: CORMORANT, fontWeight: 400 },
-  bodyBold: { fontFamily: CORMORANT, fontWeight: 700 },
-  bodyItalic: { fontFamily: CORMORANT, fontWeight: 400, fontStyle: "italic" },
-} as const;
 
 const rule = `${theme.space.ruleWidth}px solid ${theme.color.rule}`;
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { theme } from "@/menus/templates/theme";
+import { face } from "@/menus/templates/faces";
 import { ElsomLogo, ElsomLogoHorizontal } from "./Logo";
 import type { WineColumnFragment } from "@/menus/templates/wine-layout";
 import type { TastingExperience, Wine, WineContent } from "@/lib/schema";
@@ -31,6 +32,8 @@ import type { TastingExperience, Wine, WineContent } from "@/lib/schema";
  *   - The header lockup is the same `ElsomLogo` the app bar uses, and the
  *     bottom one the same `ElsomLogoHorizontal` the PDF draws, from the same
  *     Figma exports.
+ *   - The faces come from `templates/faces.ts`, which the food preview reads
+ *     too, so neither sheet can fall back to a different family than the other.
  *
  * The wine menu is ONE printed side, so there is one sheet here and no
  * front/back caption.
@@ -46,24 +49,6 @@ import type { TastingExperience, Wine, WineContent } from "@/lib/schema";
 /** The sheet is drawn at true point size, then scaled to whatever fits. */
 const SHEET_WIDTH = theme.page.width;
 const SHEET_HEIGHT = theme.page.height;
-
-/**
- * The three faces this menu uses, mapped to the web families registered in
- * `globals.css`. `theme.font` names react-pdf's registered families, which
- * aren't CSS family names — this is the translation between the two, restated
- * from the food preview's rather than imported from it, the way `WineMenu.tsx`
- * restates the header styles `FoodMenu.tsx` also has.
- *
- * There is no bold or italic run anywhere on the wine menu.
- */
-const BARLOW = '"Barlow Condensed", "Roboto Condensed", sans-serif';
-const CORMORANT = '"Cormorant Garamond", Georgia, serif';
-
-const face = {
-  headingRegular: { fontFamily: BARLOW, fontWeight: 400 },
-  headingMedium: { fontFamily: BARLOW, fontWeight: 500 },
-  body: { fontFamily: CORMORANT, fontWeight: 400 },
-} as const;
 
 const rule = `${theme.space.ruleWidth}px solid ${theme.color.rule}`;
 
