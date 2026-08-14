@@ -103,6 +103,18 @@ export function exportUrl(sheetId: string, gid: string): string {
   return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
 }
 
+/**
+ * The same tab as a person opens it, rather than as the app reads it.
+ *
+ * The gid is written twice on purpose: Sheets selects the tab from the `?gid=`
+ * query, and older links carry it in the `#gid=` fragment. Both are honoured,
+ * and sending both means the link lands on this menu's own tab rather than on
+ * whichever tab the spreadsheet happens to open with.
+ */
+export function tabUrl(sheetId: string, gid: string): string {
+  return `https://docs.google.com/spreadsheets/d/${sheetId}/edit?gid=${gid}#gid=${gid}`;
+}
+
 // ------------------------------------------------------------ columns ---
 
 /**
