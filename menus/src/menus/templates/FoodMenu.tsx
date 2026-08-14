@@ -38,7 +38,7 @@ const styles = StyleSheet.create({
     width: theme.page.contentWidth,
     height: theme.space.headerHeight,
     position: "relative",
-    borderBottomWidth: 0.5,
+    borderBottomWidth: theme.space.ruleWidth,
     borderBottomColor: theme.color.rule,
   },
   // Positions measured from the artboard, relative to the 720 x 50 header.
@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
   // --- Chef note ---
   note: { marginBottom: theme.space.betweenSections },
   noteRule: {
-    borderTopWidth: 0.5,
+    borderTopWidth: theme.space.ruleWidth,
     borderTopColor: theme.color.rule,
     marginBottom: theme.space.afterSectionHeader,
   },

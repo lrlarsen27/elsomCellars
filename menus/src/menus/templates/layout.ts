@@ -9,18 +9,25 @@ import type { MenuBlock, MenuItem } from "@/lib/schema";
  *
  *   0 = front left   1 = front right   2 = back left   3 = back right
  *
- * Content fills them in order. Individual items are never split, but a section
- * may continue into the next column — the continuation carries no heading,
- * exactly as the artboard does with Sandwiches on the front page.
+ * Content fills them in order. Individual items are never split. A section can
+ * be, and its continuation carries no heading — but that is the exception, not
+ * the normal path. Nothing on the current menu splits at all.
  *
- * --- Why sections are allowed to split ---
+ * --- Why the split is allowed at all ---
  *
- * They weren't, at first. Keeping every section whole sounds tidier, but with
- * the real menu it put Plates and the chef's note on the back page and left the
- * front 700pt empty, because Sandwiches (562pt) and Plates (597pt) can't share
- * a 1030pt column. The artboard splits Sandwiches for exactly this reason. So
- * the split is load-bearing, and keeping sections whole produced the wrong
- * printed piece.
+ * It is the fallback for a section too tall for any single column, which would
+ * otherwise have nowhere to go. Nothing on this menu reaches that case — the
+ * tallest are Plates (577pt) and Sandwiches (542pt) against a 1030pt column —
+ * so what actually decides the breaks is the rule further down: a section that
+ * fits in a column of its own is moved whole to the next one rather than split.
+ *
+ * This used to be the other way round. Splitting was the routine path, chosen
+ * to keep the front page full: Sandwiches and Plates can't share a column, so
+ * refusing to split pushed Plates onto the back page and left the front several
+ * hundred points empty. The old artboard avoided that by splitting Sandwiches
+ * over the fold. The redesigned one doesn't, so that layout is now the intended
+ * one — the front right carries Sandwiches alone, with 488pt to spare, on
+ * purpose. Don't "fix" it by making splitting eager again.
  *
  * --- The honest caveat ---
  *
@@ -133,7 +140,7 @@ function countLines(text: string, charsPerLine: number): number {
  * Gaps are added *between* elements by the caller rather than baked into each
  * one. That distinction matters: a margin below the last item in a column
  * occupies no visible space, and counting it made the estimate run about 6%
- * high — enough to push the chef's note off the front page when it fits.
+ * high — enough to push a block into the next column when it would have fit.
  */
 export function estimateItemHeight(item: MenuItem): number {
   let height = theme.lineHeight.itemName + theme.space.afterItemName;
