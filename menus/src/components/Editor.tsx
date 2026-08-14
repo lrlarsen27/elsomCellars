@@ -2,17 +2,20 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { MenuPreview } from "./MenuPreview";
-import { flowBlocksIntoColumns } from "@/menus/templates/layout";
 import { ArrowBackIcon, DownloadIcon, ErrorIcon } from "@/components/Icon";
 import { loadMenuContent, sheetConfigFromEnv, type SheetFailure, type SheetWarning } from "@/lib/sheet";
 import { menuKindFor, type PrintableContent } from "@/menus/kinds";
-import type { MenuContent } from "@/lib/schema";
 
 /**
  * Preview and export. The menu's content lives in a spreadsheet, so there is
  * nothing to edit here — this page reads the sheet, draws the sheet as it will
  * print, and exports the PDF.
+ *
+ * This file is menu-agnostic and stays that way. It knows the load states, the
+ * warnings, the fit gate and the export handler; it knows nothing about food or
+ * wine. Everything per menu — where to read, how to place, what to draw, what
+ * an overrun means — arrives on the bundle in `menus/kinds.ts`, and the only
+ * thing the shell asks of any menu's content is that it carries a season.
  *
  * Everything runs in the browser. The page itself is a static file.
  */
@@ -22,18 +25,15 @@ type LoadState =
   | { phase: "loaded"; content: PrintableContent; warnings: SheetWarning[] }
   | { phase: "failed"; failure: SheetFailure };
 
-/**
- * Transitional. The shell asks a menu's content for a season and nothing more,
- * but the column flow and the preview it still calls are the food menu's own.
- * Both move onto the menu's bundle in a later unit and this goes with them;
- * until then the food menu is the only menu with either, so the content the
- * shell is holding is always food content.
- */
-function asFoodContent(content: PrintableContent): MenuContent {
-  return content as MenuContent;
-}
-
 export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: string }) {
+  /*
+   * The shell selects its own bundle from the menu id, rather than being handed
+   * one: the route is a server component, and a server component cannot pass a
+   * function across the client boundary. The bundle it looks up is a module
+   * constant, so this is stable across renders and the load effect runs once.
+   */
+  const kind = menuKindFor(menuId);
+
   // The build prerenders this component, so the first render must not depend on
   // anything only the browser knows. Loading is the honest initial state.
   const [state, setState] = useState<LoadState>({ phase: "loading" });
@@ -46,7 +46,6 @@ export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: strin
   // Resolution happens per menu, so a menu that was never wired up fails on its
   // own page and leaves every other menu reading exactly as before.
   const load = useCallback(() => {
-    const kind = menuKindFor(menuId);
     if (!kind) {
       setState({
         phase: "failed",
@@ -74,15 +73,15 @@ export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: strin
           : { phase: "failed", failure: result.failure },
       );
     });
-  }, [menuId]);
+  }, [kind, menuId]);
 
   useEffect(load, [load]);
 
   async function handleDownload(content: PrintableContent) {
     // The export draws the same placement the fit gate below was computed from,
-    // rather than the template running the flow again. Content and flow arrive
-    // together, so this is unreachable with content on screen.
-    if (!flow) return;
+    // rather than the template running the flow again. Content and placement
+    // arrive together, so this is unreachable with content on screen.
+    if (!placement) return;
 
     setDownloading(true);
     setDownloadError(null);
@@ -96,7 +95,7 @@ export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: strin
         import("@/menus/templates"),
       ]);
 
-      const document = renderMenuDocument(menuId, asFoodContent(content), flow.columns);
+      const document = renderMenuDocument(menuId, content, placement.columns);
       if (!document) {
         setDownloadError("No template for this menu.");
         return;
@@ -117,12 +116,13 @@ export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: strin
   }
 
   const content = state.phase === "loaded" ? state.content : null;
-  const flow = content ? flowBlocksIntoColumns(asFoodContent(content).blocks) : null;
+  // Placed by the menu's own flow, once, for the preview and the export alike.
+  const placement = kind && content ? kind.place(content) : null;
 
   // The fit check estimates from character counts and runs about 1% generous,
   // so a hard block would occasionally strand a menu that prints fine. It
   // blocks by default and lets someone say otherwise on purpose.
-  const blockedByFit = Boolean(flow?.overflow) && !exportAnyway;
+  const blockedByFit = Boolean(placement?.overflow) && !exportAnyway;
 
   return (
     <div style={{ minHeight: "100vh" }}>
@@ -153,17 +153,16 @@ export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: strin
 
         {state.phase === "failed" ? <Failure failure={state.failure} onRetry={load} /> : null}
 
-        {state.phase === "loaded" && flow ? (
+        {state.phase === "loaded" && placement && kind ? (
           <>
             {state.warnings.length > 0 ? <Warnings warnings={state.warnings} /> : null}
 
-            {flow.overflow ? (
+            {placement.overflow ? (
               <Notice tone="error">
                 <span>
                   This is more than fits on the sheet — the{" "}
-                  <strong>{(flow.overflowColumn ?? "last").toLowerCase()}</strong> column runs past
-                  the bottom of the page. Shorten something in the spreadsheet, or move a section
-                  up so it lands in an earlier column.
+                  <strong>{(placement.overflowColumn ?? "last").toLowerCase()}</strong> column runs
+                  past the bottom of the page. {kind.overflowAdvice}
                   <label
                     style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}
                     className="md-body-medium"
@@ -186,7 +185,9 @@ export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: strin
               change it, then reload this page.
             </p>
 
-            <MenuPreview content={asFoodContent(state.content)} columns={flow.columns} />
+            {/* The preview is a function returning an element, not a component
+                reference, so this file never names a menu's prop types. */}
+            {placement.preview()}
           </>
         ) : null}
       </main>

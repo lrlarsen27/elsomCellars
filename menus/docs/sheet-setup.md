@@ -118,6 +118,11 @@ Same grammar, different columns. Row 1 holds these:
 |---|---|---|---|---|---|
 | `Type` | `Name` | `Bottle price` | `Glass price` | `Location` | `Tasting notes` |
 
+The same synonyms apply here: `Title` for `Name`, `Bottle` and `Glass` for the
+two prices, `Appellation` for `Location`, and `Notes` for `Tasting notes`. The
+wine tab's vocabulary is its own — a food column name is not valid here, and
+this tab's names are not valid there.
+
 | `Type` | What it is | Columns it uses |
 |---|---|---|
 | `Section` | A heading like "Whites & Rosé" | `Name` |
@@ -130,14 +135,23 @@ Three differences from the food tab worth knowing:
   tab is rejected by name rather than printed.
 - **Either price may be empty.** A bottle-only reserve and a glass-only pour are
   both ordinary entries; each price prints in its own column and the other stays
-  blank.
+  blank. A wine with *neither* still prints, and the page warns and names the
+  row — that one is more often a half-typed row than a deliberate entry.
 - **`Experience` is the only row that may appear before the first section.** It
   prints in the box across the top, not in a column, so its position in the sheet
   is the one place row order does not decide where something lands. An `Item`
-  before the first section is still an error.
+  before the first section is still an error. There is one box, so a second
+  `Experience` row is an error too.
 
 `Location` is the appellation — "Yakima Valley", "Horse Heaven Hills". It prints
-on its own line between the wine's name and its tasting notes.
+on its own line between the wine's name and its tasting notes. Leaving it empty
+is fine; the wine keeps the same height either way, because the design has
+exactly two item heights and a shorter one would invent a third.
+
+The wine menu prints on **one** side, in two columns. Content that runs past the
+bottom of the right column has nowhere to go — the page says so, names the
+column, and won't export until it is shortened or someone deliberately overrides
+it.
 
 ### 6. Build the `Settings` tab
 
@@ -156,9 +170,11 @@ disclaimer plus the service charge; the wine menu's is the 21+ notice plus the
 same service charge. Format column B as plain text too — the disclaimer starts
 with an asterisk, which Sheets will otherwise try to interpret.
 
-**Renaming a key blanks the menu that reads it.** `season`, `serviceCharge` and
-`wineFooter` are required: if one is missing the page says so and refuses to
-export, rather than printing a menu with a line silently absent.
+**Renaming a key blanks the menu that reads it.** All four are required by the
+menu that prints them — `season` and `serviceCharge` by both, `disclaimer` by
+the food menu, `wineFooter` by the wine menu. If one is missing, or its value
+cell is empty, that menu's page says which key and refuses to export rather than
+printing with a line silently absent. The other menu is unaffected.
 
 ### 7. Add guard rails
 
