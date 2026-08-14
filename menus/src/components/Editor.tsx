@@ -79,6 +79,11 @@ export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: strin
   useEffect(load, [load]);
 
   async function handleDownload(content: PrintableContent) {
+    // The export draws the same placement the fit gate below was computed from,
+    // rather than the template running the flow again. Content and flow arrive
+    // together, so this is unreachable with content on screen.
+    if (!flow) return;
+
     setDownloading(true);
     setDownloadError(null);
 
@@ -91,7 +96,7 @@ export function Editor({ menuId, menuLabel }: { menuId: string; menuLabel: strin
         import("@/menus/templates"),
       ]);
 
-      const document = renderMenuDocument(menuId, asFoodContent(content));
+      const document = renderMenuDocument(menuId, asFoodContent(content), flow.columns);
       if (!document) {
         setDownloadError("No template for this menu.");
         return;
