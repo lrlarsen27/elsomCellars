@@ -425,7 +425,8 @@ function PriceLabels() {
 /**
  * One row of three fixed-width children: 230 + 43 + 71 = 344, leaving the bottle
  * price's right edge 4pt inside the 348 column the rule above it fills. That
- * inset is the artboard's, not a rounding slip — do not close it.
+ * inset is the artboard's, not a rounding slip — do not close it. The tasting
+ * notes sit below that row at their own wider width, running under the prices.
  */
 function WineRow({ wine }: { wine: Wine }) {
   const price = {
@@ -454,58 +455,61 @@ function WineRow({ wine }: { wine: Wine }) {
   };
 
   return (
-    <div style={{ ...noShrink, display: "flex" }}>
-      <div style={{ ...noShrink, width: theme.wine.item.textWidth }}>
-        {/*
-          The artboard's title band is 21 while the name sits on a 22pt line,
-          which no box model can hold at once — so the band is a floor and the
-          22pt line decides, exactly as it does in the PDF and exactly what the
-          estimator charges. A fixed 21 would disagree with both.
-        */}
-        <div style={{ minHeight: theme.wine.item.titleRowHeight }}>
-          <div
-            style={{
-              ...face.headingMedium,
-              fontSize: theme.wine.item.nameSize,
-              lineHeight: `${theme.wine.item.nameLineHeight}px`,
-              color: theme.color.gold,
-              letterSpacing: theme.wine.item.nameTracking,
-              textTransform: "uppercase",
-            }}
-          >
-            {wine.name}
+    <div style={noShrink}>
+      <div style={{ ...noShrink, display: "flex" }}>
+        <div style={{ ...noShrink, width: theme.wine.item.textWidth }}>
+          {/*
+            The artboard's title band is 21 while the name sits on a 22pt line,
+            which no box model can hold at once — so the band is a floor and the
+            22pt line decides, exactly as it does in the PDF and exactly what the
+            estimator charges. A fixed 21 would disagree with both.
+          */}
+          <div style={{ minHeight: theme.wine.item.titleRowHeight }}>
+            <div
+              style={{
+                ...face.headingMedium,
+                fontSize: theme.wine.item.nameSize,
+                lineHeight: `${theme.wine.item.nameLineHeight}px`,
+                color: theme.color.gold,
+                letterSpacing: theme.wine.item.nameTracking,
+                textTransform: "uppercase",
+              }}
+            >
+              {wine.name}
+            </div>
           </div>
+
+          {/* Only for a wine that has one — an empty row prints as a bare gap. */}
+          {wine.location ? (
+            <p
+              style={{
+                ...detail,
+                minHeight: theme.wine.item.locationLineHeight,
+                fontSize: theme.wine.item.locationSize,
+                lineHeight: `${theme.wine.item.locationLineHeight}px`,
+              }}
+            >
+              {wine.location}
+            </p>
+          ) : null}
         </div>
 
-        {/* Only for a wine that has one — an empty row prints as a bare gap. */}
-        {wine.location ? (
-          <p
-            style={{
-              ...detail,
-              minHeight: theme.wine.item.locationLineHeight,
-              fontSize: theme.wine.item.locationSize,
-              lineHeight: `${theme.wine.item.locationLineHeight}px`,
-            }}
-          >
-            {wine.location}
-          </p>
-        ) : null}
-        <p
-          style={{
-            ...detail,
-            minHeight: theme.wine.item.notesLineHeight,
-            fontSize: theme.wine.item.notesSize,
-            lineHeight: `${theme.wine.item.notesLineHeight}px`,
-          }}
-        >
-          {wine.tastingNotes}
-        </p>
+        {/* A wine sold only one way prints one price and leaves the other column
+            empty; the widths are fixed, so nothing shifts. */}
+        <p style={{ ...price, width: theme.wine.item.glassPriceWidth }}>{wine.glassPrice}</p>
+        <p style={{ ...price, width: theme.wine.item.bottlePriceWidth }}>{wine.bottlePrice}</p>
       </div>
-
-      {/* A wine sold only one way prints one price and leaves the other column
-          empty; the widths are fixed, so nothing shifts. */}
-      <p style={{ ...price, width: theme.wine.item.glassPriceWidth }}>{wine.glassPrice}</p>
-      <p style={{ ...price, width: theme.wine.item.bottlePriceWidth }}>{wine.bottlePrice}</p>
+      <p
+        style={{
+          ...detail,
+          width: theme.wine.item.notesWidth,
+          minHeight: theme.wine.item.notesLineHeight,
+          fontSize: theme.wine.item.notesSize,
+          lineHeight: `${theme.wine.item.notesLineHeight}px`,
+        }}
+      >
+        {wine.tastingNotes}
+      </p>
     </div>
   );
 }

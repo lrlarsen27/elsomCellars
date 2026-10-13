@@ -13,12 +13,11 @@ import type { TastingExperience, Wine, WineBlock, WineContent } from "@/lib/sche
 /**
  * Two rules these tests pin down.
  *
- * The first is the calibration. The wine text column is 230pt against the food
- * menu's 314, so the food module's 54 characters per line is badly optimistic
- * here, and a wine card has far less slack to absorb the error than a tabloid
- * food column does. The boundary is pinned from BOTH sides — the longest note
- * on the live tab that stays on one line, and the shortest that wraps — because
- * a one-sided test passes for any value at all in the wrong direction.
+ * The first is the calibration. The wine text column is 230pt, and the
+ * tasting notes run under the prices at 314pt — the food menu's description
+ * width, and the food module's 54 characters per line with it. Each boundary is
+ * pinned from BOTH sides, because a one-sided test passes for any value at all
+ * in the wrong direction.
  *
  * The second is the placement. A wine section never splits across the column
  * break, and the price-column labels print on the first section in each column
@@ -34,15 +33,19 @@ import type { TastingExperience, Wine, WineBlock, WineContent } from "@/lib/sche
 // ----------------------------------------------------------- fixtures ---
 
 /**
- * The live tab's tasting notes, with the character counts that bracket the
- * wrap. On the artboard, everything at 38 and below sits on one line and the
- * 41 wraps to two, so the estimator's figure has to fall between them.
+ * Tasting notes, with the character counts that bracket the wrap. At 314pt a
+ * line holds 54 characters, so nothing on the live tab wraps on its own; the
+ * two boundary notes are synthetic, one character apart.
  */
 const NOTES = {
-  /** 38 characters. Vermouth. The longest live note that stays on one line. */
+  /** 38 characters. Vermouth. */
   longestOneLine: "Dozen + herbs, spices, roots & flowers",
-  /** 41 characters. 2019 Isabella. The shortest live note that wraps to two. */
-  shortestWrapping: "White pepper, huckleberry, & green pepper",
+  /** 41 characters. 2019 Isabella — wrapped in the 230pt column, not at 314. */
+  isabella: "White pepper, huckleberry, & green pepper",
+  /** 54 characters. The longest note that stays on one line. */
+  atWidth: "White pepper, huckleberry, green pepper & a dry finish",
+  /** 55 characters. The shortest note that wraps to two. */
+  shortestWrapping: "White pepper, huckleberry, green pepper & a long finish",
   /**
    * The Keeper. The sheet carries an authored break, and the artboard prints
    * the first line — 40 characters — without wrapping it further.
@@ -105,7 +108,7 @@ const LIVE_BLOCKS: WineBlock[] = [
   ]),
   section("Blends", [
     wine("2018 Isabella", "Red Mountain", "Marionberry, strawberry, & fennel"),
-    wine("2019 Isabella", "Columbia Valley", NOTES.shortestWrapping),
+    wine("2019 Isabella", "Columbia Valley", NOTES.isabella),
     wine("The Keeper", "Columbia Valley", NOTES.keeper),
   ]),
   section("Specialty", [wine("Vermouth", "", NOTES.longestOneLine)]),
@@ -141,24 +144,31 @@ describe("estimating a wine's height", () => {
     expect(estimateWineHeight(ordinary)).toBe(PRINTED_HEIGHT);
   });
 
-  it("leaves the longest known one-line note on one line", () => {
-    // The premise: this is the 38-character note the artboard prints unwrapped.
-    expect(NOTES.longestOneLine).toHaveLength(38);
+  it("leaves a note that fills the line exactly on one line", () => {
+    expect(NOTES.atWidth).toHaveLength(54);
 
-    const vermouth = wine("Vermouth", "Yakima Valley", NOTES.longestOneLine);
+    const atWidth = wine("2019 Isabella", "Columbia Valley", NOTES.atWidth);
 
-    expect(estimateWineHeight(vermouth)).toBe(PRINTED_HEIGHT);
+    expect(estimateWineHeight(atWidth)).toBe(PRINTED_HEIGHT);
   });
 
-  it("adds exactly one line for the shortest known wrapping note", () => {
-    // The premise: three characters longer than the note above, and the
-    // artboard wraps it. A calibration outside (38, 41] fails one of the two.
-    expect(NOTES.shortestWrapping).toHaveLength(41);
+  it("leaves 2019 Isabella on one line now the notes run wider", () => {
+    expect(NOTES.isabella).toHaveLength(41);
 
-    const isabella = wine("2019 Isabella", "Columbia Valley", NOTES.shortestWrapping);
+    const isabella = wine("2019 Isabella", "Columbia Valley", NOTES.isabella);
 
-    expect(estimateWineHeight(isabella)).toBe(PRINTED_HEIGHT_WRAPPED);
-    expect(estimateWineHeight(isabella)).toBe(PRINTED_HEIGHT + theme.wine.item.notesLineHeight);
+    expect(estimateWineHeight(isabella)).toBe(PRINTED_HEIGHT);
+  });
+
+  it("adds exactly one line for the shortest wrapping note", () => {
+    // One character longer than the note above. A calibration outside
+    // [54, 55) fails one of the two.
+    expect(NOTES.shortestWrapping).toHaveLength(55);
+
+    const wrapping = wine("2019 Isabella", "Columbia Valley", NOTES.shortestWrapping);
+
+    expect(estimateWineHeight(wrapping)).toBe(PRINTED_HEIGHT_WRAPPED);
+    expect(estimateWineHeight(wrapping)).toBe(PRINTED_HEIGHT + theme.wine.item.notesLineHeight);
   });
 
   it("keeps an authored line break to the two lines the artboard prints", () => {

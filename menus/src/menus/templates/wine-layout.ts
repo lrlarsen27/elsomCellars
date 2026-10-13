@@ -85,6 +85,16 @@ export const WINE_COLUMN_HEIGHT = theme.wine.column.height;
 const WINE_CHARS_PER_LINE = 40;
 
 /**
+ * The tasting notes run wider than the text column — `theme.wine.item.notesWidth`
+ * — so they take the 40 above scaled to their own width: 314 * 40 / 230 = 54.6…,
+ * so 54. That agrees with the food menu's 54, measured independently at the
+ * same face, size and width.
+ */
+const WINE_NOTES_CHARS_PER_LINE = Math.floor(
+  theme.wine.item.notesWidth * (WINE_CHARS_PER_LINE / theme.wine.item.textWidth),
+);
+
+/**
  * How many characters of a wine NAME fit on one line. The name is a different
  * face at a different size from the tasting notes — 16pt Barlow Condensed
  * Medium, uppercased, with 1pt tracking — so it takes its own figure. The 40
@@ -221,7 +231,8 @@ export function estimateWineHeight(wine: Wine): number {
     nameLines * theme.wine.item.nameLineHeight +
     location +
     theme.wine.item.innerGap +
-    lines(wine.tastingNotes) * theme.wine.item.notesLineHeight
+    Math.max(1, countLines(wine.tastingNotes, WINE_NOTES_CHARS_PER_LINE)) *
+      theme.wine.item.notesLineHeight
   );
 }
 

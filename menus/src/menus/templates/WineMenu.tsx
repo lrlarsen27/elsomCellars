@@ -194,9 +194,11 @@ const styles = StyleSheet.create({
   /**
    * One row of three fixed-width children: 230 + 43 + 71 = 344, leaving the
    * bottle price's right edge 4pt inside the 348 column the rule above it fills.
-   * That inset is the artboard's, not a rounding slip — do not close it.
+   * That inset is the artboard's, not a rounding slip — do not close it. The
+   * tasting notes sit below that row at their own wider width, running under
+   * the prices.
    */
-  item: { flexDirection: "row" },
+  itemRow: { flexDirection: "row" },
   itemBody: { width: theme.wine.item.textWidth },
   /**
    * The artboard's title band is 21 while the name sits on a 22pt line, which no
@@ -230,6 +232,7 @@ const styles = StyleSheet.create({
     color: theme.color.description,
   },
   notes: {
+    width: theme.wine.item.notesWidth,
     minHeight: theme.wine.item.notesLineHeight,
     marginTop: theme.wine.item.innerGap,
     fontFamily: fonts.body,
@@ -328,19 +331,21 @@ function PriceLabels() {
 
 function WineRow({ wine }: { wine: Wine }) {
   return (
-    <View style={styles.item} wrap={false}>
-      <View style={styles.itemBody}>
-        <View style={styles.itemTitleRow}>
-          <Text style={styles.itemName}>{wine.name}</Text>
+    <View wrap={false}>
+      <View style={styles.itemRow}>
+        <View style={styles.itemBody}>
+          <View style={styles.itemTitleRow}>
+            <Text style={styles.itemName}>{wine.name}</Text>
+          </View>
+          {wine.location ? <Text style={styles.location}>{wine.location}</Text> : null}
         </View>
-        {wine.location ? <Text style={styles.location}>{wine.location}</Text> : null}
-        <Text style={styles.notes}>{wine.tastingNotes}</Text>
-      </View>
 
-      {/* A wine sold only one way prints one price and leaves the other column
-          empty; the widths are fixed, so nothing shifts. */}
-      <Text style={[styles.price, styles.glassPrice]}>{wine.glassPrice}</Text>
-      <Text style={[styles.price, styles.bottlePrice]}>{wine.bottlePrice}</Text>
+        {/* A wine sold only one way prints one price and leaves the other column
+            empty; the widths are fixed, so nothing shifts. */}
+        <Text style={[styles.price, styles.glassPrice]}>{wine.glassPrice}</Text>
+        <Text style={[styles.price, styles.bottlePrice]}>{wine.bottlePrice}</Text>
+      </View>
+      <Text style={styles.notes}>{wine.tastingNotes}</Text>
     </View>
   );
 }

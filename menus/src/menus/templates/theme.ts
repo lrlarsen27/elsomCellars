@@ -285,7 +285,12 @@ export const theme = {
       /** Location / AVA line. MEASURED (29:5982) — takes `color.description`. */
       locationSize: 14,
       locationLineHeight: 17,
-      /** Tasting notes. MEASURED (29:5986) — takes `color.description`. */
+      /**
+       * Tasting notes. MEASURED (29:5986) — takes `color.description`.
+       * DESIGN DECISION, not measured: the notes run 314 wide, under the price
+       * columns, rather than in the 230 text column, to give longer notes room.
+       */
+      notesWidth: 314,
       notesSize: 14,
       notesLineHeight: 17,
       /** Between an item's own lines: title, gap, location, gap, notes. */
